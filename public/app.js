@@ -75,11 +75,51 @@ function enter(tripId, name) {
   currentTripId = tripId;
   socket.emit("join", { tripId, userName: name }, (resp) => {
     if (resp.error) return showLandingError(resp.error);
+    saveRecent(resp.trip);
     history.replaceState(null, "", "?trip=" + tripId);
     $("#landing").classList.add("hidden");
     $("#app").classList.remove("hidden");
   });
 }
+
+// 최근 본 여행 (localStorage) — 링크 없이 재방문
+function getRecent() {
+  try { return JSON.parse(localStorage.getItem("tp_recent") || "[]"); } catch { return []; }
+}
+function saveRecent(trip) {
+  if (!trip || !trip.id) return;
+  const list = getRecent().filter((t) => t.id !== trip.id);
+  list.unshift({ id: trip.id, name: trip.name || "우리 여행", destination: trip.destination || "",
+    startDate: trip.startDate || "", endDate: trip.endDate || "" });
+  localStorage.setItem("tp_recent", JSON.stringify(list.slice(0, 8)));
+}
+function removeRecent(id) {
+  localStorage.setItem("tp_recent", JSON.stringify(getRecent().filter((t) => t.id !== id)));
+  renderRecent();
+}
+function renderRecent() {
+  const wrap = $("#recentWrap"), list = $("#recentList");
+  const items = getRecent();
+  if (!items.length) { wrap.classList.add("hidden"); return; }
+  wrap.classList.remove("hidden");
+  list.innerHTML = "";
+  for (const t of items) {
+    const range = t.startDate ? `${fmtDate(t.startDate)}${t.endDate ? " ~ " + fmtDate(t.endDate) : ""}` : "";
+    const meta = [t.destination && "📍 " + t.destination, range].filter(Boolean).join("  ·  ");
+    list.append(el("div", { class: "recent-item" },
+      el("button", { class: "recent-open", onclick: () => {
+        const nm = $("#nameInput").value.trim() || localStorage.getItem("tp_name");
+        if (!nm) return showLandingError("이름을 먼저 입력해주세요.");
+        saveName(nm);
+        enter(t.id, nm);
+      } },
+        el("span", { class: "recent-name" }, t.name),
+        meta ? el("span", { class: "recent-meta" }, meta) : null),
+      el("button", { class: "recent-x", title: "목록에서 제거", onclick: () => removeRecent(t.id) }, "✕")
+    ));
+  }
+}
+renderRecent();
 
 socket.on("state", (trip) => {
   state = trip;
@@ -340,29 +380,18 @@ function slotTime(i) {
 
 /* ── 지도로 일정 짜기 ────────────────────────────── */
 let map = null, mapMarkers = null, mapRoutes = null;
-let previewPlace = null; // 검색해서 지도에 띄운, 아직 일정에 담기 전 장소
 const MAP_COLORS = ["#2563eb", "#dc2626", "#059669", "#d97706", "#7c3aed", "#db2777", "#0891b2", "#65a30d"];
 
 function numIcon(color, n) {
   return L.divIcon({ className: "map-pin", html: `<span class="pin-num" style="background:${color}">${n}</span>`,
     iconSize: [26, 26], iconAnchor: [13, 13], popupAnchor: [0, -13] });
 }
-function previewIcon() {
-  return L.divIcon({ className: "map-pin", html: `<span class="pin-preview">📍</span>`,
-    iconSize: [30, 30], iconAnchor: [15, 28], popupAnchor: [0, -26] });
-}
 
 function showMap() {
   const pane = $("#tab-map");
   if (!map) {
     pane.innerHTML = "";
-    const search = el("div", { class: "plan-search" },
-      el("div", { class: "plan-search-label" }, "🔎 장소를 검색해 지도에서 확인하고 일정에 담아보세요"),
-      searchBox("장소·주소 검색 — 또는 직접 입력 후 Enter", pickSearchResult),
-      el("div", { class: "plan-preview hidden", id: "planPreview" })
-    );
     pane.append(
-      search,
       el("div", { class: "map-toolbar", id: "mapToolbar" }),
       el("div", { class: "map-canvas", id: "mapCanvas" })
     );
@@ -374,48 +403,6 @@ function showMap() {
   }
   updateMap();
   requestAnimationFrame(() => map.invalidateSize());
-}
-
-// 검색 결과 선택 → (좌표 없으면 자동 조회) → 미리보기로 지도에 표시
-async function pickSearchResult(r) {
-  previewPlace = { name: r.name, addr: r.addr || "", lat: r.lat ?? null, lon: r.lon ?? null };
-  renderPreviewBar();
-  const g = await ensureCoords(r);
-  previewPlace = { name: g.name, addr: g.addr || "", lat: g.lat ?? null, lon: g.lon ?? null };
-  updateMap();
-  renderPreviewBar();
-  if (previewPlace.lat != null && map) map.setView([previewPlace.lat, previewPlace.lon], 15);
-}
-
-function addPlaceToDay(place, day) {
-  send("addItem", { dayId: day.id, place: place.name, memo: place.memo || "", addr: place.addr || "",
-    lat: place.lat ?? null, lon: place.lon ?? null, time: slotTime(day.items.length) });
-}
-
-// 검색창 아래 미리보기 바: 어느 날짜에 담을지 선택
-function renderPreviewBar() {
-  const bar = $("#planPreview");
-  if (!bar) return;
-  bar.innerHTML = "";
-  if (!previewPlace) { bar.classList.add("hidden"); return; }
-  bar.classList.remove("hidden");
-  bar.append(el("div", { class: "pv-info" },
-    el("span", { class: "pv-name" }, "📍 " + (previewPlace.name || "(이름 없음)")),
-    previewPlace.addr ? el("span", { class: "pv-addr" }, previewPlace.addr.split(",").slice(0, 3).join(", ")) : null,
-    previewPlace.lat == null ? el("span", { class: "pv-warn" }, "위치를 못 찾아 지도에는 표시되지 않아요") : null));
-  const days = state.itinerary;
-  if (!days.length) {
-    bar.append(el("span", { class: "pv-addr" }, "먼저 아래 일정표에서 날짜를 추가하세요."));
-    return;
-  }
-  const btns = el("div", { class: "pv-days" }, el("span", { class: "pv-label" }, "일정에 담기 →"));
-  days.forEach((d, di) => {
-    btns.append(el("button", { class: "map-day-btn", style: `border-color:${MAP_COLORS[di % MAP_COLORS.length]}`,
-      onclick: () => { addPlaceToDay(previewPlace, d); previewPlace = null; updateMap(); renderPreviewBar(); } },
-      (fmtDate(d.date) || `${di + 1}일차`) + "에 담기"));
-  });
-  btns.append(el("button", { class: "map-day-btn", onclick: () => { previewPlace = null; updateMap(); renderPreviewBar(); } }, "취소"));
-  bar.append(btns);
 }
 
 function itemPopup(day, di, it, idx) {
@@ -448,13 +435,6 @@ function updateMap() {
     if (line.length > 1) L.polyline(line, { color, weight: 3, opacity: 0.75 }).addTo(mapRoutes);
   });
 
-  // 검색 미리보기 핀
-  if (previewPlace && previewPlace.lat != null) {
-    const ll = [previewPlace.lat, previewPlace.lon];
-    bounds.push(ll);
-    L.marker(ll, { icon: previewIcon() }).bindPopup(`<b>${previewPlace.name}</b><br>아래에서 담을 날짜를 선택하세요`).addTo(mapMarkers);
-  }
-
   buildMapToolbar(legendDays);
 
   if (bounds.length === 1) map.setView(bounds[0], 14);
@@ -468,7 +448,7 @@ function buildMapToolbar(legendDays) {
   legendDays.forEach((x) => legend.append(el("span", { class: "lg-item" },
     el("span", { class: "lg-dot", style: `background:${x.color}` }), `${x.label} (${x.count})`)));
   if (!legendDays.length) {
-    legend.append(el("span", { class: "lg-empty" }, "위 검색으로 장소를 찾아 일정에 담으면 지도에 표시돼요."));
+    legend.append(el("span", { class: "lg-empty" }, "아래 일정표에서 장소를 검색해 담으면 지도에 표시돼요."));
   }
   bar.append(legend);
 }
@@ -509,10 +489,65 @@ function searchBox(placeholder, onPick) {
   return wrap;
 }
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// 장소 목록을 붙여넣으면 위치 조회 → 동선 정렬 → 날짜 분배 → 시간 배정
+function openAutoPlan() {
+  if (!state.itinerary.length) {
+    alert("먼저 여행 날짜가 필요해요. 일정표 아래에서 날짜를 추가하거나, 새 여행을 만들 때 기간을 넣어주세요.");
+    return;
+  }
+  const ta = el("textarea", { class: "auto-ta", rows: "7",
+    placeholder: "가고 싶은 곳을 한 줄에 하나씩\n예)\n속초해수욕장\n대포항\n설악산 신흥사\n영금정" });
+  const status = el("div", { class: "auto-status" }, "");
+  const genBtn = el("button", { class: "primary" }, "생성");
+  const modal = el("div", { class: "modal" },
+    el("div", { class: "modal-card" },
+      el("h3", {}, "✨ 장소로 자동 일정 짜기"),
+      el("p", { class: "sub" }, "가고 싶은 곳을 한 줄에 하나씩 적어주세요. 위치를 찾아 동선(가까운 순)으로 날짜에 나눠 담아요."),
+      ta, status,
+      el("div", { class: "row", style: "margin-top:12px" },
+        genBtn,
+        el("button", { class: "ghost", onclick: () => modal.remove() }, "닫기"))));
+  genBtn.addEventListener("click", () => runAutoPlan(ta, status, genBtn, modal));
+  document.body.append(modal);
+  ta.focus();
+}
+
+async function runAutoPlan(ta, status, genBtn, modal) {
+  const names = ta.value.split(/[\n,]/).map((s) => s.trim()).filter(Boolean);
+  if (!names.length) { status.textContent = "장소를 한 개 이상 입력해주세요."; return; }
+  const days = state.itinerary;
+  let replace = false;
+  if (days.some((d) => d.items.length)) {
+    replace = confirm("이미 일정에 항목이 있어요.\n\n[확인] 기존 일정을 지우고 새로 생성\n[취소] 기존 항목 뒤에 이어붙이기");
+  }
+  genBtn.disabled = true;
+  const places = [];
+  for (let i = 0; i < names.length; i++) {
+    status.textContent = `위치 찾는 중… (${i + 1}/${names.length}) ${names[i]}`;
+    places.push(await ensureCoords({ name: names[i], addr: "", lat: null, lon: null }));
+    if (i < names.length - 1) await sleep(500); // Nominatim 예의상 간격
+  }
+  const geo = places.filter((p) => p.lat != null && p.lon != null);
+  const noGeo = places.filter((p) => p.lat == null || p.lon == null);
+  const ordered = [...nearestNeighborPath(geo), ...noGeo];
+  const chunks = splitBalanced(ordered, days.length);
+  const assignments = days.map((d, di) => ({
+    dayId: d.id,
+    items: chunks[di].map((p, i) => ({ place: p.name, addr: p.addr || "", lat: p.lat ?? null, lon: p.lon ?? null, time: slotTime(i) })),
+  }));
+  send("autoPlan", { assignments, replace });
+  modal.remove();
+  toast(`✨ 자동 일정 완료 · ${places.length}곳` + (noGeo.length ? ` (위치 못 찾은 ${noGeo.length}곳은 위치 없이 추가)` : ""));
+}
+
 function renderItinerary() {
   const root = $("#tab-itinerary");
   root.innerHTML = "";
-  root.append(el("h2", { class: "pane-title" }, "📅 일정표"));
+  root.append(el("div", { class: "itin-head" },
+    el("h2", { class: "pane-title" }, "📅 일정표"),
+    el("button", { class: "primary sm", onclick: openAutoPlan }, "✨ 자동으로 일정 짜기")));
 
   if (state.itinerary.length === 0) {
     root.append(el("p", { class: "empty" }, "여행을 만들 때 기간을 넣으면 날짜가 자동으로 채워져요. 아래에서 날짜를 추가할 수도 있어요."));
@@ -571,12 +606,15 @@ function renderDay(day) {
       prevCoordIdx = idx;
     }
   });
+  if (!day.items.length) {
+    timeline.append(el("div", { class: "day-empty" }, "아래 검색창에서 장소를 찾아 이 날짜에 담아보세요."));
+  }
   card.append(timeline);
 
   card.append(el("div", { class: "add-item-box" },
-    searchBox("장소 검색해서 추가 — 또는 직접 입력 후 Enter", async (r) => {
+    searchBox("장소 검색", async (r) => {
       const g = await ensureCoords(r);
-      send("addItem", { dayId: day.id, place: g.name, addr: g.addr || "", lat: g.lat ?? null, lon: g.lon ?? null });
+      send("addItem", { dayId: day.id, place: g.name, addr: g.addr || "", lat: g.lat ?? null, lon: g.lon ?? null, time: slotTime(day.items.length) });
     })
   ));
 
@@ -592,6 +630,17 @@ function sortByTime(day) {
   const withTime = day.items.filter((i) => i.time).sort((a, b) => a.time.localeCompare(b.time));
   const noTime = day.items.filter((i) => !i.time);
   send("reorderDay", { dayId: day.id, orderedIds: [...withTime, ...noTime].map((i) => i.id) });
+}
+
+// 드래그 순서 변경: draggedId를 targetId 앞으로 이동
+let dragItem = null;
+function reorderWithin(day, draggedId, targetId) {
+  if (draggedId === targetId) return;
+  const ids = day.items.map((i) => i.id).filter((id) => id !== draggedId);
+  const ti = ids.indexOf(targetId);
+  if (ti < 0) return;
+  ids.splice(ti, 0, draggedId);
+  send("reorderDay", { dayId: day.id, orderedIds: ids });
 }
 
 async function runOptimize(day, coordItems, btn) {
@@ -611,15 +660,36 @@ async function runOptimize(day, coordItems, btn) {
 function renderItineraryItem(day, it) {
   const isOpen = expanded.has(it.id);
   const wrap = el("div", { class: "acc-item tl-item" + (isOpen ? " open" : "") });
+  wrap.addEventListener("dragover", (e) => {
+    if (dragItem && dragItem.dayId === day.id && dragItem.id !== it.id) { e.preventDefault(); wrap.classList.add("drag-over"); }
+  });
+  wrap.addEventListener("dragleave", () => wrap.classList.remove("drag-over"));
+  wrap.addEventListener("drop", (e) => {
+    e.preventDefault(); wrap.classList.remove("drag-over");
+    if (dragItem && dragItem.dayId === day.id) { reorderWithin(day, dragItem.id, it.id); dragItem = null; }
+  });
+
+  const handle = el("span", { class: "drag-handle", draggable: "true", title: "드래그해서 순서 변경",
+    onclick: (e) => e.stopPropagation() }, "⠿");
+  handle.addEventListener("dragstart", (e) => {
+    dragItem = { dayId: day.id, id: it.id };
+    e.dataTransfer.effectAllowed = "move";
+    try { e.dataTransfer.setDragImage(wrap, 12, 12); } catch {}
+    wrap.classList.add("dragging");
+  });
+  handle.addEventListener("dragend", () => wrap.classList.remove("dragging"));
 
   const summary = el("div", { class: "acc-head",
     onclick: (e) => {
-      if (e.target.closest(".del")) return;
+      if (e.target.closest(".del") || e.target.closest(".drag-handle") || e.target.closest(".acc-time-input")) return;
       isOpen ? expanded.delete(it.id) : expanded.add(it.id);
       render();
     } });
   summary.append(
-    el("span", { class: "acc-time" }, it.time || "—"),
+    handle,
+    el("input", { type: "time", class: "acc-time-input", value: it.time || "",
+      onclick: (e) => e.stopPropagation(),
+      onchange: (e) => send("updateItem", { dayId: day.id, id: it.id, time: e.target.value }) }),
     el("span", { class: "tl-dot" + (it.lat != null ? " geo" : "") }, ""),
     el("span", { class: "acc-title" }, it.place || "(제목 없음)"),
     ...(it.addr && !isOpen ? [el("span", { class: "acc-sub" }, it.addr.split(",")[0])] : []),
@@ -633,8 +703,6 @@ function renderItineraryItem(day, it) {
     body.append(
       field("장소·활동", el("input", { type: "text", value: it.place, placeholder: "예: 도톤보리",
         onchange: (e) => send("updateItem", { dayId: day.id, id: it.id, place: e.target.value }) })),
-      field("시간", el("input", { type: "time", value: it.time,
-        onchange: (e) => send("updateItem", { dayId: day.id, id: it.id, time: e.target.value }) })),
       field("메모", el("input", { type: "text", value: it.memo, placeholder: "예약, 준비물, 팁 등",
         onchange: (e) => send("updateItem", { dayId: day.id, id: it.id, memo: e.target.value }) }))
     );

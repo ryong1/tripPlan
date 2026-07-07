@@ -375,3 +375,13 @@ button.sm { padding: 7px 12px; font-size: 14px; }
 /* 항목 링크 칩 */
 .link-chip { color: var(--brand-dark); border-color: var(--line); }
 .pres-editing { color: var(--brand-dark); }
+
+/* '오늘' 뷰 + 완료 체크 */
+.day-card { scroll-margin-top: 110px; }
+.day-card.today { border: 1.5px solid var(--brand); }
+.today-badge { font-size: 11px; font-weight: 700; color: #fff; background: var(--brand); border-radius: 999px; padding: 2px 8px; }
+.done-btn { flex: none; margin-left: auto; width: 22px; height: 22px; padding: 0; border-radius: 50%; border: 1.5px solid var(--line); background: #fff; color: transparent; font-size: 12px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; }
+.done-btn.on { background: var(--ok); border-color: var(--ok); color: #fff; }
+.acc-head .del { margin-left: 8px; }
+.tl-item.done .acc-title { text-decoration: line-through; color: var(--muted); }
+.tl-item.done { opacity: 0.62; }

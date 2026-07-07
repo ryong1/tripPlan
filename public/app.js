@@ -226,6 +226,12 @@ function fmtDate(iso) {
   const w = ["일", "월", "화", "수", "목", "금", "토"][d.getDay()];
   return `${d.getMonth() + 1}/${d.getDate()}(${w})`;
 }
+function todayISO() {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+let scrolledToday = false;
 
 function render() {
   if (!state) return;
@@ -648,6 +654,10 @@ function renderItinerary() {
     root.append(renderDay(day));
   }
   loadWeather();
+  if (!scrolledToday && $("#tab-plan").classList.contains("active")) {
+    const t = root.querySelector(".day-card.today");
+    if (t) { scrolledToday = true; requestAnimationFrame(() => t.scrollIntoView({ behavior: "smooth", block: "start" })); }
+  }
 
   const dateInput = el("input", { type: "date" });
   root.append(el("div", { class: "card section-add" },
@@ -662,10 +672,13 @@ function renderItinerary() {
 function renderDay(day) {
   const card = el("div", { class: "card day-card" });
 
+  const isToday = day.date && day.date === todayISO();
+  if (isToday) card.classList.add("today");
   const total = el("span", { class: "day-total" }, "");
   const w = weatherByDate && weatherByDate[day.date];
   card.append(el("div", { class: "day-head" },
     el("div", { class: "day-date" }, fmtDate(day.date) || "날짜 미정"),
+    ...(isToday ? [el("span", { class: "today-badge" }, "오늘")] : []),
     ...(w ? [el("span", { class: "day-weather" }, `${wmoIcon(w.code)} ${Math.round(w.tmax)}° / ${Math.round(w.tmin)}°`)] : []),
     el("button", { class: "del tiny", onclick: () => confirmDel("이 날짜를 통째로 삭제할까요?") && send("removeDay", { id: day.id }) }, "삭제")
   ));
@@ -759,7 +772,7 @@ async function runOptimize(day, coordItems, btn) {
 
 function renderItineraryItem(day, it) {
   const isOpen = expanded.has(it.id);
-  const wrap = el("div", { class: "acc-item tl-item" + (isOpen ? " open" : "") });
+  const wrap = el("div", { class: "acc-item tl-item" + (isOpen ? " open" : "") + (it.done ? " done" : "") });
   wrap.addEventListener("dragover", (e) => {
     if (dragItem && dragItem.dayId === day.id && dragItem.id !== it.id) { e.preventDefault(); wrap.classList.add("drag-over"); }
   });
@@ -781,7 +794,7 @@ function renderItineraryItem(day, it) {
 
   const summary = el("div", { class: "acc-head",
     onclick: (e) => {
-      if (e.target.closest(".del") || e.target.closest(".drag-handle") || e.target.closest(".acc-time-input")) return;
+      if (e.target.closest(".del") || e.target.closest(".drag-handle") || e.target.closest(".acc-time-input") || e.target.closest(".done-btn")) return;
       isOpen ? expanded.delete(it.id) : expanded.add(it.id);
       render();
     } });
@@ -795,6 +808,8 @@ function renderItineraryItem(day, it) {
     ...(it.addr && !isOpen ? [el("span", { class: "acc-sub" }, it.addr.split(",")[0])] : []),
     ...(it.lat == null && !isOpen ? [el("span", { class: "acc-nogeo", title: "위치를 못 찾아 이동시간 계산에서 제외돼요. 항목을 눌러 위치를 지정하세요." }, "위치 없음")] : []),
     ...(it.link && !isOpen ? [el("button", { class: "tiny link-chip", title: it.link, onclick: (e) => { e.stopPropagation(); openLink(it.link); } }, "링크")] : []),
+    el("button", { class: "done-btn" + (it.done ? " on" : ""), title: it.done ? "완료됨 — 해제" : "다녀왔어요 체크",
+      onclick: (e) => { e.stopPropagation(); send("updateItem", { dayId: day.id, id: it.id, done: !it.done }); } }, "✓"),
     el("button", { class: "del tiny", onclick: () => send("removeItem", { dayId: day.id, id: it.id }) }, "✕")
   );
   wrap.append(summary);

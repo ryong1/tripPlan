@@ -120,7 +120,7 @@ function applyAction(trip, action, user) {
       const d = trip.itinerary.find((x) => x.id === payload.dayId);
       if (d) d.items.push({
         id: uid(), time: payload.time || "", place: payload.place || "", memo: payload.memo || "",
-        lat: payload.lat ?? null, lon: payload.lon ?? null, addr: payload.addr || "", link: payload.link || "",
+        lat: payload.lat ?? null, lon: payload.lon ?? null, addr: payload.addr || "", link: payload.link || "", done: false,
       });
       break;
     }
@@ -128,7 +128,7 @@ function applyAction(trip, action, user) {
       const d = trip.itinerary.find((x) => x.id === payload.dayId);
       const it = d && d.items.find((i) => i.id === payload.id);
       if (it) {
-        for (const k of ["time", "place", "memo", "lat", "lon", "addr", "link"]) if (payload[k] !== undefined) it[k] = payload[k];
+        for (const k of ["time", "place", "memo", "lat", "lon", "addr", "link", "done"]) if (payload[k] !== undefined) it[k] = payload[k];
       }
       break;
     }

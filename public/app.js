@@ -105,7 +105,7 @@ function renderRecent() {
   list.innerHTML = "";
   for (const t of items) {
     const range = t.startDate ? `${fmtDate(t.startDate)}${t.endDate ? " ~ " + fmtDate(t.endDate) : ""}` : "";
-    const meta = [t.destination && "📍 " + t.destination, range].filter(Boolean).join("  ·  ");
+    const meta = [t.destination, range].filter(Boolean).join("  ·  ");
     list.append(el("div", { class: "recent-item" },
       el("button", { class: "recent-open", onclick: () => {
         const nm = $("#nameInput").value.trim() || localStorage.getItem("tp_name");
@@ -155,6 +155,37 @@ $("#copyBtn").addEventListener("click", async () => {
     $("#shareLink").select();
   }
 });
+
+// 확정 일정을 카톡에 붙여넣을 텍스트로 만들기
+function buildPlanText() {
+  const t = state;
+  if (!t) return "";
+  const range = t.startDate ? `${fmtDate(t.startDate)}${t.endDate ? " ~ " + fmtDate(t.endDate) : ""}` : "";
+  let out = `${t.name || "우리 여행"}`;
+  if (t.destination) out += `  · ${t.destination}`;
+  if (range) out += `\n${range}`;
+  out += "\n";
+  for (const d of t.itinerary) {
+    out += `\n[${fmtDate(d.date) || "날짜 미정"}]\n`;
+    if (!d.items.length) { out += "· (아직 미정)\n"; continue; }
+    for (const it of d.items) out += `${it.time ? it.time + "  " : ""}${it.place || "(제목 없음)"}\n`;
+  }
+  out += `\n공유 링크: ${location.origin}/?trip=${t.id}`;
+  return out.trim();
+}
+$("#copyPlanBtn").addEventListener("click", async () => {
+  const text = buildPlanText();
+  try {
+    await navigator.clipboard.writeText(text);
+    toast("일정을 복사했어요 — 카톡에 붙여넣기");
+  } catch {
+    prompt("복사해서 공유하세요", text);
+  }
+});
+
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("/sw.js").catch(() => {});
+}
 
 function isEditing() {
   const ae = document.activeElement;
@@ -231,14 +262,13 @@ async function routeLegs(points, profile = "driving") {
 const WALK_MPS = 4.8 * 1000 / 3600; // ≈ 1.33 m/s
 function fillRouteLegs(coordItems, legHolders, total, profile) {
   const walk = profile === "walking";
-  const icon = walk ? "🚶" : "🚗";
   const suffix = walk ? " (약)" : "";
   routeLegs(coordItems, "driving").then((legs) => {
     let sumD = 0, sumT = 0;
     legs.forEach((lg, i) => {
       const dur = walk ? lg.distance / WALK_MPS : lg.duration;
       sumD += lg.distance; sumT += dur;
-      if (legHolders[i]) legHolders[i].node.textContent = `${icon} ${fmtDist(lg.distance)} · ${fmtDur(dur)}${suffix}`;
+      if (legHolders[i]) legHolders[i].node.textContent = `${fmtDist(lg.distance)} · ${fmtDur(dur)}${suffix}`;
     });
     total.textContent = `총 ${fmtDist(sumD)} · ${fmtDur(sumT)}${suffix}`;
   }).catch(() => {
@@ -277,10 +307,9 @@ async function fillTransitLegs(day, coordItems, legHolders, total) {
     let t;
     try { t = await transitLeg(coordItems[i], coordItems[i + 1]); }
     catch { if (node) node.textContent = "대중교통 계산 실패"; allFound = false; continue; }
-    if (t.error === "no_key") { noKey = true; if (node) node.textContent = "🔑 ODsay 키 설정 필요"; allFound = false; continue; }
-    if (!t.found) { if (node) node.textContent = "🚉 대중교통 경로 없음"; allFound = false; continue; }
-    const icon = TRANSIT_ICON[t.pathType] || "🚌";
-    const parts = [`${icon} ${t.mode} ${fmtDur(t.totalTime * 60)}`];
+    if (t.error === "no_key") { noKey = true; if (node) node.textContent = "ODsay 키 설정 필요"; allFound = false; continue; }
+    if (!t.found) { if (node) node.textContent = "대중교통 경로 없음"; allFound = false; continue; }
+    const parts = [`${t.mode} ${fmtDur(t.totalTime * 60)}`];
     if (t.transfers) parts.push(`환승 ${t.transfers}회`);
     parts.push(t.payment ? `${t.payment.toLocaleString("ko-KR")}원` : "요금 미제공");
     const from = coordItems[i], to = coordItems[i + 1];
@@ -289,7 +318,7 @@ async function fillTransitLegs(day, coordItems, legHolders, total) {
       node.append(
         el("span", { class: "leg-text" }, parts.join(" · ")),
         el("button", { class: "leg-add-btn", title: "이 구간 교통비를 경비정산에 추가",
-          onclick: (e) => addTransitFare(day, from, to, t, e.target) }, "🧾 경비 추가")
+          onclick: (e) => addTransitFare(day, from, to, t, e.target) }, "경비 추가")
       );
     }
     sumT += t.totalTime; sumPay += t.payment || 0;
@@ -309,7 +338,7 @@ function addTransitFare(day, from, to, t, btn) {
   }
   const desc = `${fmtDate(day.date)} ${t.mode} (${from.place || "출발"}→${to.place || "도착"})`;
   send("addExpense", { desc, amount, payer: me, sharedBy: (state.members || []).slice() });
-  toast(`💰 경비 추가됨 · ${amount.toLocaleString("ko-KR")}원`);
+  toast(`경비 추가됨 · ${amount.toLocaleString("ko-KR")}원`);
 }
 
 function toast(msg) {
@@ -379,8 +408,16 @@ function slotTime(i) {
 }
 
 /* ── 지도로 일정 짜기 ────────────────────────────── */
-let map = null, mapMarkers = null, mapRoutes = null;
+let map = null, mapMarkers = null, mapRoutes = null, mapCollapsed = false;
 const MAP_COLORS = ["#2563eb", "#dc2626", "#059669", "#d97706", "#7c3aed", "#db2777", "#0891b2", "#65a30d"];
+
+function toggleMap() {
+  mapCollapsed = !mapCollapsed;
+  const c = $("#mapCanvas");
+  if (c) c.style.display = mapCollapsed ? "none" : "";
+  updateMap();
+  if (!mapCollapsed && map) requestAnimationFrame(() => map.invalidateSize());
+}
 
 function numIcon(color, n) {
   return L.divIcon({ className: "map-pin", html: `<span class="pin-num" style="background:${color}">${n}</span>`,
@@ -437,13 +474,16 @@ function updateMap() {
 
   buildMapToolbar(legendDays);
 
-  if (bounds.length === 1) map.setView(bounds[0], 14);
-  else if (bounds.length > 1) map.fitBounds(bounds, { padding: [45, 45] });
+  if (!mapCollapsed) {
+    if (bounds.length === 1) map.setView(bounds[0], 14);
+    else if (bounds.length > 1) map.fitBounds(bounds, { padding: [45, 45] });
+  }
 }
 
 function buildMapToolbar(legendDays) {
   const bar = $("#mapToolbar");
   bar.innerHTML = "";
+  bar.append(el("button", { class: "tiny", onclick: toggleMap }, mapCollapsed ? "지도 보기" : "지도 접기"));
   const legend = el("div", { class: "map-legend" });
   legendDays.forEach((x) => legend.append(el("span", { class: "lg-item" },
     el("span", { class: "lg-dot", style: `background:${x.color}` }), `${x.label} (${x.count})`)));
@@ -489,6 +529,41 @@ function searchBox(placeholder, onPick) {
   return wrap;
 }
 
+// ── 날씨 (Open-Meteo, 무료·키 불필요) ──
+let weatherByDate = null, weatherKey = null;
+function wmoIcon(code) {
+  if (code === 0) return "☀️";
+  if (code <= 2) return "🌤️";
+  if (code === 3) return "☁️";
+  if (code <= 48) return "🌫️";
+  if (code <= 57) return "🌦️";
+  if (code <= 67) return "🌧️";
+  if (code <= 77) return "🌨️";
+  if (code <= 82) return "🌧️";
+  if (code <= 86) return "🌨️";
+  return "⛈️";
+}
+function loadWeather() {
+  const days = state.itinerary;
+  if (!days.length || !days[0].date) return;
+  let lat = null, lon = null;
+  for (const d of days) { for (const it of d.items) if (it.lat != null) { lat = it.lat; lon = it.lon; break; } if (lat != null) break; }
+  if (lat == null) return; // 좌표가 있는 장소가 아직 없음
+  const start = days[0].date, end = days[days.length - 1].date;
+  const key = `${lat.toFixed(2)},${lon.toFixed(2)},${start},${end}`;
+  if (key === weatherKey) return; // 이미 조회함
+  weatherKey = key;
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}`
+    + `&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto&start_date=${start}&end_date=${end}`;
+  fetch(url).then((r) => r.json()).then((d) => {
+    if (!d.daily || !d.daily.time) return;
+    const m = {};
+    d.daily.time.forEach((t, i) => { m[t] = { code: d.daily.weather_code[i], tmax: d.daily.temperature_2m_max[i], tmin: d.daily.temperature_2m_min[i] }; });
+    weatherByDate = m;
+    render();
+  }).catch(() => {});
+}
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // 장소 목록을 붙여넣으면 위치 조회 → 동선 정렬 → 날짜 분배 → 시간 배정
@@ -498,12 +573,12 @@ function openAutoPlan() {
     return;
   }
   const ta = el("textarea", { class: "auto-ta", rows: "7",
-    placeholder: "가고 싶은 곳을 한 줄에 하나씩\n예)\n속초해수욕장\n대포항\n설악산 신흥사\n영금정" });
+    placeholder: "가고 싶은 곳을 한 줄에 하나씩 적어주세요" });
   const status = el("div", { class: "auto-status" }, "");
   const genBtn = el("button", { class: "primary" }, "생성");
-  const modal = el("div", { class: "modal" },
+  const modal = el("div", { class: "modal auto-modal" },
     el("div", { class: "modal-card" },
-      el("h3", {}, "✨ 장소로 자동 일정 짜기"),
+      el("h3", {}, "장소로 자동 일정 짜기"),
       el("p", { class: "sub" }, "가고 싶은 곳을 한 줄에 하나씩 적어주세요. 위치를 찾아 동선(가까운 순)으로 날짜에 나눠 담아요."),
       ta, status,
       el("div", { class: "row", style: "margin-top:12px" },
@@ -539,15 +614,15 @@ async function runAutoPlan(ta, status, genBtn, modal) {
   }));
   send("autoPlan", { assignments, replace });
   modal.remove();
-  toast(`✨ 자동 일정 완료 · ${places.length}곳` + (noGeo.length ? ` (위치 못 찾은 ${noGeo.length}곳은 위치 없이 추가)` : ""));
+  toast(`자동 일정 완료 · ${places.length}곳` + (noGeo.length ? ` (위치 못 찾은 ${noGeo.length}곳은 위치 없이 추가)` : ""));
 }
 
 function renderItinerary() {
   const root = $("#tab-itinerary");
   root.innerHTML = "";
   root.append(el("div", { class: "itin-head" },
-    el("h2", { class: "pane-title" }, "📅 일정표"),
-    el("button", { class: "primary sm", onclick: openAutoPlan }, "✨ 자동으로 일정 짜기")));
+    el("h2", { class: "pane-title" }, "일정표"),
+    el("button", { class: "primary sm", onclick: openAutoPlan }, "자동으로 일정 짜기")));
 
   if (state.itinerary.length === 0) {
     root.append(el("p", { class: "empty" }, "여행을 만들 때 기간을 넣으면 날짜가 자동으로 채워져요. 아래에서 날짜를 추가할 수도 있어요."));
@@ -556,6 +631,7 @@ function renderItinerary() {
   for (const day of state.itinerary) {
     root.append(renderDay(day));
   }
+  loadWeather();
 
   const dateInput = el("input", { type: "date" });
   root.append(el("div", { class: "card section-add" },
@@ -571,23 +647,25 @@ function renderDay(day) {
   const card = el("div", { class: "card day-card" });
 
   const total = el("span", { class: "day-total" }, "");
+  const w = weatherByDate && weatherByDate[day.date];
   card.append(el("div", { class: "day-head" },
     el("div", { class: "day-date" }, fmtDate(day.date) || "날짜 미정"),
-    el("button", { class: "del tiny", onclick: () => confirmDel("이 날짜를 통째로 삭제할까요?") && send("removeDay", { id: day.id }) }, "🗑")
+    ...(w ? [el("span", { class: "day-weather" }, `${wmoIcon(w.code)} ${Math.round(w.tmax)}° / ${Math.round(w.tmin)}°`)] : []),
+    el("button", { class: "del tiny", onclick: () => confirmDel("이 날짜를 통째로 삭제할까요?") && send("removeDay", { id: day.id }) }, "삭제")
   ));
 
   const coordItems = day.items.filter((i) => i.lat != null && i.lon != null);
   const tools = el("div", { class: "day-tools" });
   if (day.items.length >= 2) {
-    tools.append(el("button", { class: "tiny", onclick: () => sortByTime(day) }, "🕒 시간순 정렬"));
+    tools.append(el("button", { class: "tiny", onclick: () => sortByTime(day) }, "시간순 정렬"));
   }
   const mode = dayMode.get(day.id) || "car";
   if (coordItems.length >= 2) {
-    tools.append(el("button", { class: "tiny", onclick: (e) => runOptimize(day, coordItems, e.target) }, "🧭 동선 최적화"));
+    tools.append(el("button", { class: "tiny", onclick: (e) => runOptimize(day, coordItems, e.target) }, "동선 최적화"));
     tools.append(el("div", { class: "mode-toggle" },
-      el("button", { class: "tiny seg" + (mode === "car" ? " on" : ""), onclick: () => { dayMode.set(day.id, "car"); render(); } }, "🚗 자동차"),
-      el("button", { class: "tiny seg" + (mode === "walk" ? " on" : ""), onclick: () => { dayMode.set(day.id, "walk"); render(); } }, "🚶 도보"),
-      el("button", { class: "tiny seg" + (mode === "transit" ? " on" : ""), onclick: () => { dayMode.set(day.id, "transit"); render(); } }, "🚆 대중교통")));
+      el("button", { class: "tiny seg" + (mode === "car" ? " on" : ""), onclick: () => { dayMode.set(day.id, "car"); render(); } }, "자동차"),
+      el("button", { class: "tiny seg" + (mode === "walk" ? " on" : ""), onclick: () => { dayMode.set(day.id, "walk"); render(); } }, "도보"),
+      el("button", { class: "tiny seg" + (mode === "transit" ? " on" : ""), onclick: () => { dayMode.set(day.id, "transit"); render(); } }, "대중교통")));
     tools.append(total);
   }
   card.append(tools);
@@ -701,16 +779,16 @@ function renderItineraryItem(day, it) {
   if (isOpen) {
     const body = el("div", { class: "acc-body" });
     body.append(
-      field("장소·활동", el("input", { type: "text", value: it.place, placeholder: "예: 도톤보리",
+      field("장소·활동", el("input", { type: "text", value: it.place, placeholder: "장소",
         onchange: (e) => send("updateItem", { dayId: day.id, id: it.id, place: e.target.value }) })),
-      field("메모", el("input", { type: "text", value: it.memo, placeholder: "예약, 준비물, 팁 등",
+      field("메모", el("input", { type: "text", value: it.memo, placeholder: "메모",
         onchange: (e) => send("updateItem", { dayId: day.id, id: it.id, memo: e.target.value }) }))
     );
     if (it.lat != null) {
       body.append(el("div", { class: "acc-field" },
         el("label", {}, "위치 (동선 계산에 사용됨)"),
         el("div", { class: "loc-line" },
-          el("span", {}, "📍 " + (it.addr ? it.addr.split(",").slice(0, 3).join(", ") : `${it.lat.toFixed(4)}, ${it.lon.toFixed(4)}`)),
+          el("span", {}, (it.addr ? it.addr.split(",").slice(0, 3).join(", ") : `${it.lat.toFixed(4)}, ${it.lon.toFixed(4)}`)),
           el("button", { class: "tiny", onclick: () => send("updateItem", { dayId: day.id, id: it.id, lat: null, lon: null, addr: "" }) }, "위치 지우기"))
       ));
     } else {
@@ -736,7 +814,7 @@ function flash(node, msg) {
 function renderExpenses() {
   const root = $("#tab-expenses");
   root.innerHTML = "";
-  root.append(el("h2", { class: "pane-title" }, "💰 경비정산"));
+  root.append(el("h2", { class: "pane-title" }, "경비정산"));
 
   const members = state.members.length ? state.members : [me];
   const descI = el("input", { type: "text", placeholder: "내역" });
@@ -852,7 +930,7 @@ function settleTransactions(bal) {
 function renderPacking() {
   const root = $("#tab-packing");
   root.innerHTML = "";
-  root.append(el("h2", { class: "pane-title" }, "🎒 준비물"));
+  root.append(el("h2", { class: "pane-title" }, "준비물"));
 
   const members = state.members.length ? state.members : [me];
   const textI = el("input", { type: "text", placeholder: "준비물" });

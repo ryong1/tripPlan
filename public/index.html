@@ -5,16 +5,24 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>여행 플래너</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#1f2e52" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="여행 플래너" />
+  <link rel="apple-touch-icon" href="/icon.svg" />
 </head>
 <body>
   <div id="landing" class="landing">
     <div class="landing-card">
-      <h1>✈️ 여행 플래너</h1>
+      <h1>여행 플래너</h1>
       <p class="sub">친구들과 함께 실시간으로 여행 계획을 세워요</p>
       <div class="field">
         <label>내 이름</label>
-        <input id="nameInput" type="text" placeholder="예: 가영" maxlength="30" />
+        <input id="nameInput" type="text" placeholder="이름" maxlength="30" />
       </div>
       <div id="recentWrap" class="recent-wrap hidden">
         <label class="recent-label">이어서 계획하기</label>
@@ -57,13 +65,13 @@
       </div>
       <div class="topbar-right">
         <span id="presence" class="presence">● 1명 접속</span>
-        <button id="shareBtn" class="ghost">🔗 공유</button>
+        <button id="shareBtn" class="ghost">공유</button>
       </div>
     </header>
     <nav class="tabs">
-      <button class="tab active" data-tab="plan">🗺️ 여행 계획</button>
-      <button class="tab" data-tab="expenses">💰 경비정산</button>
-      <button class="tab" data-tab="packing">🎒 준비물</button>
+      <button class="tab active" data-tab="plan">여행 계획</button>
+      <button class="tab" data-tab="expenses">경비정산</button>
+      <button class="tab" data-tab="packing">준비물</button>
     </nav>
     <main class="content">
       <section id="tab-plan" class="tabpane active">
@@ -76,12 +84,13 @@
   </div>
   <div id="shareModal" class="modal hidden">
     <div class="modal-card">
-      <h3>🔗 함께할 사람 초대</h3>
+      <h3>함께할 사람 초대</h3>
       <p class="sub">아래 링크를 카톡 등으로 공유하세요. 링크를 연 사람은 바로 같이 편집할 수 있어요.</p>
       <div class="row">
         <input id="shareLink" type="text" readonly />
         <button id="copyBtn" class="primary">복사</button>
       </div>
+      <button id="copyPlanBtn" class="ghost" style="width:100%;margin-top:10px">확정 일정 텍스트 복사 (카톡용)</button>
       <button id="closeShare" class="ghost close-modal">닫기</button>
     </div>
   </div>

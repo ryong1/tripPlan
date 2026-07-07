@@ -1,0 +1,13 @@
+{
+  "name": "여행 플래너",
+  "short_name": "여행플래너",
+  "description": "친구들과 실시간으로 함께 세우는 여행 계획",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f4f6fb",
+  "theme_color": "#4f6ef7",
+  "lang": "ko",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

@@ -125,8 +125,24 @@ socket.on("state", (trip) => {
   state = trip;
   render();
 });
-socket.on("presence", ({ online }) => {
-  $("#presence").textContent = `● ${online}명 접속`;
+socket.on("presence", ({ online, people }) => {
+  const ppl = people || [];
+  const names = ppl.map((p) => p.name).join(", ") || `${online}명`;
+  const editing = ppl.filter((p) => p.editing).map((p) => p.name);
+  let txt = `● ${names}`;
+  if (editing.length) txt += `  ·  ${editing.join(", ")} 편집 중`;
+  $("#presence").textContent = txt;
+});
+
+// 편집 중 표시: 계획 영역 입력창에 포커스가 있으면 알림
+function emitEditing(on) { if (currentTripId) socket.emit("editing", { editing: on }); }
+document.addEventListener("focusin", (e) => {
+  const ae = e.target;
+  if (["INPUT", "SELECT", "TEXTAREA"].includes(ae.tagName) && ae.closest(".content")) emitEditing(true);
+});
+document.addEventListener("focusout", (e) => {
+  const ae = e.target;
+  if (["INPUT", "SELECT", "TEXTAREA"].includes(ae.tagName) && ae.closest(".content")) emitEditing(false);
 });
 
 document.querySelectorAll(".tab").forEach((btn) => {
@@ -704,6 +720,12 @@ function renderDay(day) {
   return card;
 }
 
+function openLink(url) {
+  if (!url) return;
+  const u = /^https?:\/\//i.test(url) ? url : "https://" + url;
+  window.open(u, "_blank", "noopener");
+}
+
 function sortByTime(day) {
   const withTime = day.items.filter((i) => i.time).sort((a, b) => a.time.localeCompare(b.time));
   const noTime = day.items.filter((i) => !i.time);
@@ -772,6 +794,7 @@ function renderItineraryItem(day, it) {
     el("span", { class: "acc-title" }, it.place || "(제목 없음)"),
     ...(it.addr && !isOpen ? [el("span", { class: "acc-sub" }, it.addr.split(",")[0])] : []),
     ...(it.lat == null && !isOpen ? [el("span", { class: "acc-nogeo", title: "위치를 못 찾아 이동시간 계산에서 제외돼요. 항목을 눌러 위치를 지정하세요." }, "위치 없음")] : []),
+    ...(it.link && !isOpen ? [el("button", { class: "tiny link-chip", title: it.link, onclick: (e) => { e.stopPropagation(); openLink(it.link); } }, "링크")] : []),
     el("button", { class: "del tiny", onclick: () => send("removeItem", { dayId: day.id, id: it.id }) }, "✕")
   );
   wrap.append(summary);
@@ -782,7 +805,11 @@ function renderItineraryItem(day, it) {
       field("장소·활동", el("input", { type: "text", value: it.place, placeholder: "장소",
         onchange: (e) => send("updateItem", { dayId: day.id, id: it.id, place: e.target.value }) })),
       field("메모", el("input", { type: "text", value: it.memo, placeholder: "메모",
-        onchange: (e) => send("updateItem", { dayId: day.id, id: it.id, memo: e.target.value }) }))
+        onchange: (e) => send("updateItem", { dayId: day.id, id: it.id, memo: e.target.value }) })),
+      field("링크 (예약·정보)", el("div", { class: "row" },
+        el("input", { type: "url", value: it.link || "", placeholder: "https://",
+          onchange: (e) => send("updateItem", { dayId: day.id, id: it.id, link: e.target.value.trim() }) }),
+        ...(it.link ? [el("button", { class: "tiny", onclick: () => openLink(it.link) }, "열기")] : [])))
     );
     if (it.lat != null) {
       body.append(el("div", { class: "acc-field" },
@@ -847,6 +874,30 @@ function renderExpenses() {
     } }, "+ 지출 추가")
   ));
 
+  // 예산 대비 지출
+  const spent = state.expenses.reduce((s, e) => s + e.amount, 0);
+  const perBudget = state.budget || 0;
+  const totalBudget = perBudget * members.length;
+  const budgetI = el("input", { type: "number", min: "0", placeholder: "1인당 예산", value: perBudget || "" });
+  const budgetCard = el("div", { class: "card" },
+    el("div", { class: "card-head" }, el("h3", {}, "예산"),
+      el("span", { style: "font-size:12px;color:var(--muted)" }, `${members.length}명 기준`)),
+    el("div", { class: "row", style: "align-items:center" },
+      el("label", { style: "font-size:13px;color:var(--muted);white-space:nowrap" }, "1인당"),
+      budgetI,
+      el("button", { class: "tiny", onclick: () => send("setBudget", { amount: Number(budgetI.value) || 0 }) }, "저장"))
+  );
+  if (totalBudget > 0) {
+    const pct = Math.min(100, Math.round((spent / totalBudget) * 100));
+    const over = spent > totalBudget;
+    budgetCard.append(
+      el("div", { class: "budget-bar" }, el("div", { class: "budget-fill" + (over ? " over" : ""), style: `width:${pct}%` }, "")),
+      el("div", { class: "budget-nums" },
+        `지출 ${won(spent)} / 총예산 ${won(totalBudget)} · ` + (over ? `${won(spent - totalBudget)} 초과` : `${won(totalBudget - spent)} 남음`))
+    );
+  }
+  root.append(budgetCard);
+
   const listCard = el("div", { class: "card" });
   listCard.append(el("div", { class: "card-head" }, el("h3", {}, "지출 내역")));
   let total = 0;
@@ -884,7 +935,7 @@ function renderExpenses() {
     }
     const tx = settleTransactions(balances);
     if (tx.length) {
-      settleCard.append(el("div", { style: "margin-top:10px;font-weight:700" }, "💸 송금 방법"));
+      settleCard.append(el("div", { style: "margin-top:10px;font-weight:700" }, "송금 방법"));
       for (const t of tx) {
         settleCard.append(el("div", { class: "settle-line" }, `${t.from} → ${t.to} : ${won(t.amount)}`));
       }

@@ -366,3 +366,12 @@ button.sm { padding: 7px 12px; font-size: 14px; }
   .acc-sub { display: none; }
   .map-canvas { height: 360px; }
 }
+
+/* 예산 대비 */
+.budget-bar { height: 10px; background: var(--brand-soft); border-radius: 999px; overflow: hidden; margin-top: 12px; }
+.budget-fill { height: 100%; background: var(--brand); border-radius: 999px; transition: width 0.3s; }
+.budget-fill.over { background: var(--danger); }
+.budget-nums { font-size: 13px; color: var(--muted); margin-top: 8px; }
+/* 항목 링크 칩 */
+.link-chip { color: var(--brand-dark); border-color: var(--line); }
+.pres-editing { color: var(--brand-dark); }

@@ -72,6 +72,7 @@ function newTrip(opts = {}) {
     places: [],
     packing: [],
     members: [],
+    budget: 0,
   };
 }
 
@@ -82,6 +83,9 @@ function applyAction(trip, action, user) {
   switch (type) {
     case "renameTrip":
       trip.name = String(payload.name || trip.name).slice(0, 100);
+      break;
+    case "setBudget":
+      trip.budget = Math.max(0, Number(payload.amount) || 0);
       break;
     case "updateMeta":
       if (payload.destination !== undefined) trip.destination = String(payload.destination).slice(0, 100);
@@ -116,7 +120,7 @@ function applyAction(trip, action, user) {
       const d = trip.itinerary.find((x) => x.id === payload.dayId);
       if (d) d.items.push({
         id: uid(), time: payload.time || "", place: payload.place || "", memo: payload.memo || "",
-        lat: payload.lat ?? null, lon: payload.lon ?? null, addr: payload.addr || "",
+        lat: payload.lat ?? null, lon: payload.lon ?? null, addr: payload.addr || "", link: payload.link || "",
       });
       break;
     }
@@ -124,7 +128,7 @@ function applyAction(trip, action, user) {
       const d = trip.itinerary.find((x) => x.id === payload.dayId);
       const it = d && d.items.find((i) => i.id === payload.id);
       if (it) {
-        for (const k of ["time", "place", "memo", "lat", "lon", "addr"]) if (payload[k] !== undefined) it[k] = payload[k];
+        for (const k of ["time", "place", "memo", "lat", "lon", "addr", "link"]) if (payload[k] !== undefined) it[k] = payload[k];
       }
       break;
     }
@@ -305,6 +309,20 @@ app.get("/api/transit", async (req, res) => {
 const server = createServer(app);
 const io = new Server(server);
 
+const presence = {}; // tripId -> Map(socketId -> { name, editing })
+function presenceFor(id) {
+  const m = presence[id];
+  if (!m) return { online: 0, people: [] };
+  const byName = new Map(); // 같은 이름(여러 탭)은 하나로 합침
+  for (const { name, editing } of m.values()) {
+    const cur = byName.get(name) || { name, editing: false };
+    cur.editing = cur.editing || !!editing;
+    byName.set(name, cur);
+  }
+  const people = [...byName.values()];
+  return { online: people.length, people };
+}
+
 io.on("connection", (socket) => {
   let tripId = null;
   let userName = null;
@@ -318,6 +336,7 @@ io.on("connection", (socket) => {
     tripId = id;
     userName = (name || "익명").slice(0, 30);
     socket.join(id);
+    (presence[id] = presence[id] || new Map()).set(socket.id, { name: userName, editing: false });
     if (userName && !trip.members.includes(userName)) {
       trip.members.push(userName);
       persist();
@@ -336,14 +355,22 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("disconnect", () => {
-    if (tripId) io.to(tripId).emit("presence", presenceFor(tripId));
+  socket.on("editing", ({ editing } = {}) => {
+    if (!tripId || !presence[tripId]) return;
+    const e = presence[tripId].get(socket.id);
+    if (e && e.editing !== !!editing) {
+      e.editing = !!editing;
+      io.to(tripId).emit("presence", presenceFor(tripId));
+    }
   });
 
-  function presenceFor(id) {
-    const room = io.sockets.adapter.rooms.get(id);
-    return { online: room ? room.size : 0 };
-  }
+  socket.on("disconnect", () => {
+    if (tripId && presence[tripId]) {
+      presence[tripId].delete(socket.id);
+      if (presence[tripId].size === 0) delete presence[tripId];
+      io.to(tripId).emit("presence", presenceFor(tripId));
+    }
+  });
 });
 
 const PORT = process.env.PORT || 3000;

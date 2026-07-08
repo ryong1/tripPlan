@@ -392,8 +392,10 @@ function addTransitFare(day, from, to, t, btn) {
 }
 
 function toast(msg) {
+  let wrap = $("#toastWrap");
+  if (!wrap) { wrap = el("div", { class: "toast-wrap", id: "toastWrap" }); document.body.append(wrap); }
   const t = el("div", { class: "toast" }, msg);
-  document.body.append(t);
+  wrap.append(t);
   setTimeout(() => t.remove(), 2200);
 }
 
@@ -665,36 +667,41 @@ function optimizeRoute() {
 }
 
 // 목적지 지역의 볼거리·맛집으로 일정을 자동 생성 (무료 OSM 기반)
-async function generateCourse() {
+async function generateCourse(btn) {
   if (!state.destination) { alert("먼저 목적지를 설정해주세요."); return; }
   const days = state.itinerary;
   if (!days.length) { alert("먼저 여행 날짜가 필요해요."); return; }
   const center = await getTripCenter();
   if (!center) { alert("목적지 위치를 찾지 못했어요. 목적지 이름을 확인해주세요."); return; }
   if (!confirm(`${state.destination} 지역의 볼거리·맛집으로 일정을 자동으로 채울까요?\n(기존 일정 항목은 대체됩니다)`)) return;
-  toast("추천 코스 만드는 중…");
-  const n = days.length;
-  const [attr, rest, cafe] = await Promise.all([
-    searchNearby(center.lat, center.lon, "attraction", 3000),
-    searchNearby(center.lat, center.lon, "restaurant", 3000),
-    searchNearby(center.lat, center.lon, "cafe", 3000),
-  ]);
-  const pool = [...attr.slice(0, n * 2), ...rest.slice(0, n)];
-  if (pool.length < n) pool.push(...cafe.slice(0, n));
-  const seen = new Set(), geo = [];
-  for (const p of pool) {
-    if (p.lat == null || seen.has(p.name)) continue;
-    seen.add(p.name); geo.push(p);
+  const orig = btn && btn.textContent;
+  if (btn) { btn.disabled = true; btn.textContent = "만드는 중…"; }
+  try {
+    const n = days.length;
+    const [attr, rest, cafe] = await Promise.all([
+      searchNearby(center.lat, center.lon, "attraction", 3000),
+      searchNearby(center.lat, center.lon, "restaurant", 3000),
+      searchNearby(center.lat, center.lon, "cafe", 3000),
+    ]);
+    const pool = [...attr.slice(0, n * 2), ...rest.slice(0, n)];
+    if (pool.length < n) pool.push(...cafe.slice(0, n));
+    const seen = new Set(), geo = [];
+    for (const p of pool) {
+      if (p.lat == null || seen.has(p.name)) continue;
+      seen.add(p.name); geo.push(p);
+    }
+    if (!geo.length) { alert("이 지역에서 추천할 장소를 찾지 못했어요. 잠시 후 다시 시도해주세요."); return; }
+    const ordered = nearestNeighborPath(geo);
+    const chunks = splitBalanced(ordered, n);
+    const assignments = days.map((d, di) => ({
+      dayId: d.id,
+      items: chunks[di].map((p, i) => ({ place: p.name, addr: p.addr || "", lat: p.lat, lon: p.lon, time: slotTime(i) })),
+    }));
+    send("autoPlan", { assignments, replace: true });
+    toast(`추천 코스 완성 · ${ordered.length}곳`);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = orig; }
   }
-  if (!geo.length) { alert("이 지역에서 추천할 장소를 찾지 못했어요."); return; }
-  const ordered = nearestNeighborPath(geo);
-  const chunks = splitBalanced(ordered, n);
-  const assignments = days.map((d, di) => ({
-    dayId: d.id,
-    items: chunks[di].map((p, i) => ({ place: p.name, addr: p.addr || "", lat: p.lat, lon: p.lon, time: slotTime(i) })),
-  }));
-  send("autoPlan", { assignments, replace: true });
-  toast(`추천 코스 완성 · ${ordered.length}곳`);
 }
 
 function renderSummaryHeader() {
@@ -739,7 +746,7 @@ function renderItinerary() {
   root.append(el("div", { class: "itin-head" },
     el("h2", { class: "pane-title" }, "일정표"),
     el("div", { class: "itin-actions" },
-      el("button", { class: "primary sm", onclick: generateCourse }, "추천 코스 자동 만들기"),
+      el("button", { class: "primary sm", onclick: (e) => generateCourse(e.currentTarget) }, "추천 코스 자동 만들기"),
       el("button", { class: "sm", onclick: optimizeRoute }, "최적 동선으로 정리"))));
 
   if (state.startDate) root.append(renderSummaryHeader());
@@ -812,7 +819,7 @@ function renderDay(day) {
     }
   });
   if (!day.items.length) {
-    timeline.append(el("div", { class: "day-empty" }, "아래 검색창에서 장소를 찾아 이 날짜에 담아보세요."));
+    timeline.append(el("div", { class: "day-empty" }, "위 '추천 코스 자동 만들기'로 한 번에 채우거나, 아래 검색으로 장소를 담아보세요."));
   }
   card.append(timeline);
 

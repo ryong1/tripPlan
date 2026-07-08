@@ -903,22 +903,37 @@ function wikiKey(rec) {
   const title = p.length > 1 ? p.slice(1).join(":") : p[0];
   return { lang, title, key: `${lang}:${title}` };
 }
+const geoImgKey = (rec) => `geo:${rec.lat.toFixed(4)},${rec.lon.toFixed(4)}`;
 function cachedRecImage(rec) {
   if (rec.image && /^https?:\/\//i.test(rec.image)) return rec.image;
   const wk = wikiKey(rec);
   if (wk && recImgCache.has(wk.key)) return recImgCache.get(wk.key);
+  if (recImgCache.has(geoImgKey(rec))) return recImgCache.get(geoImgKey(rec));
   return undefined;
 }
 function resolveRecImage(rec, onDone) {
   const wk = wikiKey(rec);
-  if (!wk) { onDone(null); return; }
-  if (recImgCache.has(wk.key)) { onDone(recImgCache.get(wk.key)); return; }
-  fetch(`https://${wk.lang}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(wk.title)}`)
-    .then((r) => r.json()).then((d) => { const u = (d.thumbnail && d.thumbnail.source) || null; recImgCache.set(wk.key, u); onDone(u); })
-    .catch(() => { recImgCache.set(wk.key, null); onDone(null); });
+  if (wk) {
+    if (recImgCache.has(wk.key)) { onDone(recImgCache.get(wk.key)); return; }
+    fetch(`https://${wk.lang}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(wk.title)}`)
+      .then((r) => r.json()).then((d) => { const u = (d.thumbnail && d.thumbnail.source) || null; recImgCache.set(wk.key, u); onDone(u); })
+      .catch(() => { recImgCache.set(wk.key, null); onDone(null); });
+    return;
+  }
+  // 좌표 기반 위키백과 사진 (반경 200m 내 문서 썸네일) — 명소류 커버리지 보강
+  const ck = geoImgKey(rec);
+  if (recImgCache.has(ck)) { onDone(recImgCache.get(ck)); return; }
+  const u = `https://ko.wikipedia.org/w/api.php?action=query&format=json&origin=*`
+    + `&generator=geosearch&ggscoord=${rec.lat}%7C${rec.lon}&ggsradius=200&ggslimit=1&prop=pageimages&piprop=thumbnail&pithumbsize=320`;
+  fetch(u).then((r) => r.json()).then((d) => {
+    const pages = d.query && d.query.pages;
+    let img = null;
+    if (pages) { const p = Object.values(pages)[0]; img = (p.thumbnail && p.thumbnail.source) || null; }
+    recImgCache.set(ck, img); onDone(img);
+  }).catch(() => { recImgCache.set(ck, null); onDone(null); });
 }
 function thumbEl(rec) {
-  const t = el("div", { class: "nc-thumb" });
+  const t = el("div", { class: "nc-thumb" }, el("span", { class: "nc-thumb-label" }, catKr(rec.category)));
   const setImg = (u) => { if (u) { t.style.backgroundImage = `url("${u}")`; t.classList.add("has"); } };
   const cached = cachedRecImage(rec);
   if (cached !== undefined) setImg(cached); else resolveRecImage(rec, setImg);
@@ -956,19 +971,22 @@ function openRecDetail(rec) {
   document.body.append(modal);
 }
 function fillRegionCards(list, items) {
+  list.classList.add("rec-grid");
   if (!items.length) { list.append(el("div", { class: "nearby-empty" }, "추천이 없어요")); return; }
   for (const rec of items.slice(0, 10)) {
     const daysRow = dayButtonsFor(rec);
     daysRow.classList.add("hidden");
+    const thumb = thumbEl(rec);
+    thumb.style.cursor = "pointer";
+    thumb.addEventListener("click", () => openRecDetail(rec));
     list.append(el("div", { class: "rec-item" },
-      el("div", { class: "nearby-card" },
-        thumbEl(rec),
-        el("div", { class: "nc-info", style: "cursor:pointer", onclick: () => openRecDetail(rec) },
-          el("div", { class: "nc-name" }, rec.name),
-          el("div", { class: "nc-addr" }, [catKr(rec.category), rec.addr].filter(Boolean).join(" · "))),
-        el("div", { class: "nc-actions" },
-          el("button", { class: "tiny", onclick: () => openRecDetail(rec) }, "자세히"),
-          el("button", { class: "tiny primary", onclick: (e) => { e.currentTarget.closest(".rec-item").querySelector(".rec-days").classList.toggle("hidden"); } }, "추가"))),
+      thumb,
+      el("div", { class: "nc-body", style: "cursor:pointer", onclick: () => openRecDetail(rec) },
+        el("div", { class: "nc-name" }, rec.name),
+        el("div", { class: "nc-cat" }, [catKr(rec.category), rec.addr].filter(Boolean).join(" · "))),
+      el("div", { class: "nc-actions" },
+        el("button", { class: "tiny", onclick: () => openRecDetail(rec) }, "자세히"),
+        el("button", { class: "tiny primary", onclick: (e) => { e.currentTarget.closest(".rec-item").querySelector(".rec-days").classList.toggle("hidden"); } }, "추가")),
       daysRow));
   }
 }

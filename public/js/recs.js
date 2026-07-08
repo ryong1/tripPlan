@@ -83,6 +83,7 @@ function paintRegionRecs(cat, list) {
 }
 
 const recImgCache = new Map();   // wikiKey/imageUrl -> url|null
+const recImgInflight = new Set(); // 카카오 이미지 검색 in-flight 가드
 let focusRec = null;             // '지도에서 보기'로 강조할 추천
 const CAT_KR = { restaurant: "식당", cafe: "카페", bar: "술집", fast_food: "분식", pub: "펍",
   attraction: "볼거리", museum: "박물관", viewpoint: "전망대", theme_park: "테마파크",
@@ -99,7 +100,7 @@ function wikiKey(rec) {
   return { lang, title, key: `${lang}:${title}` };
 }
 const geoImgKey = (rec) => `geo:${rec.lat.toFixed(4)},${rec.lon.toFixed(4)}`;
-const kakaoImgKey = (rec) => `kakao:${rec.name}`;
+const kakaoImgKey = (rec) => `kakao:${(state && state.destination) || ""}:${rec.name}`;
 function cachedRecImage(rec) {
   if (rec.image && /^https?:\/\//i.test(rec.image)) return rec.image;
   const kk = kakaoImgKey(rec);
@@ -116,11 +117,14 @@ function resolveRecImage(rec, onDone) {
     const kk = kakaoImgKey(rec);
     if (recImgCache.has(kk)) { const v = recImgCache.get(kk); if (v) { onDone(v); return; } }
     else {
+      if (recImgInflight.has(kk)) return; // 이미 요청 중이면 재요청 안 함
+      recImgInflight.add(kk);
       const q = ((state && state.destination ? state.destination + " " : "") + rec.name).trim();
       fetch("/api/image?q=" + encodeURIComponent(q)).then((r) => r.json()).then((d) => {
+        recImgInflight.delete(kk);
         const u = (d && d.url) || null; recImgCache.set(kk, u);
         if (u) onDone(u); else resolveWikiImage(rec, onDone);
-      }).catch(() => { recImgCache.set(kk, null); resolveWikiImage(rec, onDone); });
+      }).catch(() => { recImgInflight.delete(kk); recImgCache.set(kk, null); resolveWikiImage(rec, onDone); });
       return;
     }
   }

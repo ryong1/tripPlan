@@ -97,17 +97,21 @@ async function getTripCenter() {
   if (centerInflight) return null;                    // 이미 조회 중이면 대기
   centerInflight = true;
   try {
-    const hits = await searchPlaces(dest, false); // 목적지 자체는 편향 없이 조회
-    if (hits[0]) {
-      const center = { lat: hits[0].lat, lon: hits[0].lon };
-      recCenterCache.set(dest, center); // 성공만 캐시
-      centerAttempts[dest] = 0;
-      render();
-      return center;
+    try {
+      const hits = await searchPlaces(dest, false); // 목적지 자체는 편향 없이 조회
+      if (hits[0]) {
+        const center = { lat: hits[0].lat, lon: hits[0].lon };
+        recCenterCache.set(dest, center); // 성공만 캐시
+        centerAttempts[dest] = 0;
+        render();
+        return center;
+      }
+    } catch {
+      // 네트워크 throw 등은 실패 시도로 취급 (아래 재시도 로직으로 흘려보냄)
     }
     // 실패는 캐시하지 않음(=다음에 재시도). 일시적 실패면 잠시 뒤 최대 3회 재시도
     const n = (centerAttempts[dest] = (centerAttempts[dest] || 0) + 1);
-    if (n < 4) setTimeout(render, 1500);
+    if (n < 4) setTimeout(getTripCenter, 1500); // 지오코딩만 재시도 (불필요한 전체 렌더 방지)
     return null;
   } finally {
     centerInflight = false;
@@ -126,6 +130,7 @@ async function routeLegs(points, profile = "driving") {
   const coords = points.map((p) => `${p.lon},${p.lat}`).join(";");
   const url = `https://router.project-osrm.org/route/v1/${profile}/${coords}?overview=false`;
   const res = await fetch(url);
+  if (!res.ok) throw new Error("http " + res.status);
   const data = await res.json();
   if (data.code !== "Ok" || !data.routes[0]) throw new Error(data.code || "route fail");
   return data.routes[0].legs.map((l) => ({ distance: l.distance, duration: l.duration }));
@@ -226,6 +231,7 @@ async function optimizeOrder(points) {
   const coords = points.map((p) => `${p.lon},${p.lat}`).join(";");
   const url = `https://router.project-osrm.org/trip/v1/driving/${coords}?source=first&roundtrip=false&overview=false`;
   const res = await fetch(url);
+  if (!res.ok) throw new Error("http " + res.status);
   const data = await res.json();
   if (data.code !== "Ok") throw new Error(data.code || "trip fail");
   return data.waypoints.map((w) => w.waypoint_index);

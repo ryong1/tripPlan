@@ -86,13 +86,18 @@ $("#createBtn").addEventListener("click", async () => {
     startDate: $("#startInput").value,
     endDate: $("#endInput").value,
   };
-  const res = await fetch("/api/trips", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  const { id } = await res.json();
-  enter(id, name);
+  try {
+    const res = await fetch("/api/trips", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const { id } = await res.json();
+    enter(id, name);
+  } catch {
+    showLandingError("여행을 만들지 못했어요. 잠시 후 다시 시도해주세요.");
+  }
 });
 
 $("#joinBtn").addEventListener("click", () => {
@@ -123,6 +128,7 @@ function enter(tripId, name, onFail) {
     saveRecent(resp.trip);
     // 여행 전환 시 이전 여행의 추천/스크롤 상태 초기화
     recState = null; nearbyCache.clear(); nearbyInflight.clear(); recCenterCache.clear();
+    geoCache.clear(); transitCache.clear(); dayMode.clear(); Object.keys(centerAttempts).forEach((k) => delete centerAttempts[k]);
     mapDayFilter = "all";
     scrolledToday = false;
     history.replaceState(null, "", "?trip=" + tripId);
@@ -140,10 +146,10 @@ function saveRecent(trip) {
   const list = getRecent().filter((t) => t.id !== trip.id);
   list.unshift({ id: trip.id, name: trip.name || "우리 여행", destination: trip.destination || "",
     startDate: trip.startDate || "", endDate: trip.endDate || "" });
-  localStorage.setItem("tp_recent", JSON.stringify(list.slice(0, 8)));
+  try { localStorage.setItem("tp_recent", JSON.stringify(list.slice(0, 8))); } catch {}
 }
 function removeRecent(id) {
-  localStorage.setItem("tp_recent", JSON.stringify(getRecent().filter((t) => t.id !== id)));
+  try { localStorage.setItem("tp_recent", JSON.stringify(getRecent().filter((t) => t.id !== id))); } catch {}
   renderRecent();
 }
 function renderRecent() {
@@ -277,6 +283,11 @@ document.addEventListener("focusout", () => {
       render();
     }
   }, 0);
+});
+
+// 탭 복귀 시 밀린 렌더 폴백 flush
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && pendingRender) { pendingRender = false; render(); }
 });
 
 function fmtDate(iso) {

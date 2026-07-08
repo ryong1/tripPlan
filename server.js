@@ -58,17 +58,52 @@ try {
   }
 } catch (e) {
   console.error("데이터 파일을 읽지 못했습니다:", e);
+  // 손상 파일을 백업(.bak)으로 옮기고 빈 상태로 시작 — 기존 파일 즉시 덮어쓰기 방지
+  try { fs.renameSync(DATA_FILE, DATA_FILE + ".bak"); } catch (e2) { console.error("백업 실패:", e2); }
+  trips = {};
 }
 
+const DATA_TMP = DATA_FILE + ".tmp";
 let saveTimer = null;
+let writing = false; // 쓰는 중 여부
+let dirty = false;   // 쓰는 중 재요청 시 대기 플래그
+function writeNow() {
+  if (writing) { dirty = true; return; }
+  writing = true;
+  dirty = false;
+  // 임시파일에 쓴 뒤 rename으로 원자적 교체
+  fs.writeFile(DATA_TMP, JSON.stringify(trips, null, 2), (err) => {
+    if (err) {
+      console.error("저장 실패:", err);
+      writing = false;
+      if (dirty) writeNow();
+      return;
+    }
+    fs.rename(DATA_TMP, DATA_FILE, (err2) => {
+      if (err2) console.error("저장 실패:", err2);
+      writing = false;
+      if (dirty) writeNow(); // 대기 중이던 재요청 처리(직렬화)
+    });
+  });
+}
 function persist() {
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
-    fs.writeFile(DATA_FILE, JSON.stringify(trips, null, 2), (err) => {
-      if (err) console.error("저장 실패:", err);
-    });
-  }, 300);
+  saveTimer = setTimeout(writeNow, 300);
 }
+
+// 종료 시 동기 flush 후 정상 종료(디바운스 대기분 유실 방지)
+function flushSync() {
+  clearTimeout(saveTimer);
+  try {
+    fs.writeFileSync(DATA_TMP, JSON.stringify(trips, null, 2));
+    fs.renameSync(DATA_TMP, DATA_FILE);
+  } catch (e) {
+    console.error("종료 저장 실패:", e);
+  }
+}
+process.on("SIGINT", () => { flushSync(); process.exit(0); });
+process.on("SIGTERM", () => { flushSync(); process.exit(0); });
+process.on("beforeExit", () => { flushSync(); });
 
 function genDays(startDate, endDate) {
   const days = [];
@@ -104,8 +139,22 @@ function newTrip(opts = {}) {
   };
 }
 
+// 좌표 정규화: null이면 null 유지, 아니면 Number 강제하되 NaN이면 null
+function normCoord(v) {
+  if (v === null || v === undefined) return null;
+  const n = Number(v);
+  return Number.isNaN(n) ? null : n;
+}
+// 링크: http(s)로 시작할 때만 저장, 아니면 ""
+function normLink(v) {
+  const s = String(v || "");
+  return /^https?:\/\//i.test(s) ? s : "";
+}
+
 function applyAction(trip, action, user) {
-  const { type, payload = {} } = action;
+  const { type } = action;
+  // payload가 객체가 아니면 빈 객체로 대체
+  const payload = (action.payload && typeof action.payload === "object") ? action.payload : {};
   const uid = () => randomUUID().slice(0, 8);
 
   switch (type) {
@@ -136,8 +185,8 @@ function applyAction(trip, action, user) {
     case "updateDay": {
       const d = trip.itinerary.find((x) => x.id === payload.id);
       if (d) {
-        if (payload.date !== undefined) d.date = payload.date;
-        if (payload.title !== undefined) d.title = payload.title;
+        if (payload.date !== undefined && /^\d{4}-\d{2}-\d{2}$/.test(String(payload.date))) d.date = String(payload.date);
+        if (payload.title !== undefined) d.title = String(payload.title).slice(0, 300);
       }
       break;
     }
@@ -147,8 +196,8 @@ function applyAction(trip, action, user) {
     case "addItem": {
       const d = trip.itinerary.find((x) => x.id === payload.dayId);
       if (d) d.items.push({
-        id: uid(), time: payload.time || "", place: payload.place || "", memo: payload.memo || "",
-        lat: payload.lat ?? null, lon: payload.lon ?? null, addr: payload.addr || "", link: payload.link || "",
+        id: uid(), time: payload.time || "", place: String(payload.place || "").slice(0, 500), memo: String(payload.memo || "").slice(0, 500),
+        lat: normCoord(payload.lat), lon: normCoord(payload.lon), addr: String(payload.addr || "").slice(0, 500), link: normLink(payload.link),
         cost: Math.max(0, Number(payload.cost) || 0), done: false,
       });
       break;
@@ -157,7 +206,14 @@ function applyAction(trip, action, user) {
       const d = trip.itinerary.find((x) => x.id === payload.dayId);
       const it = d && d.items.find((i) => i.id === payload.id);
       if (it) {
-        for (const k of ["time", "place", "memo", "lat", "lon", "addr", "link", "done"]) if (payload[k] !== undefined) it[k] = payload[k];
+        if (payload.time !== undefined) it.time = payload.time;
+        if (payload.place !== undefined) it.place = String(payload.place).slice(0, 500);
+        if (payload.memo !== undefined) it.memo = String(payload.memo).slice(0, 500);
+        if (payload.addr !== undefined) it.addr = String(payload.addr).slice(0, 500);
+        if (payload.lat !== undefined) it.lat = normCoord(payload.lat);
+        if (payload.lon !== undefined) it.lon = normCoord(payload.lon);
+        if (payload.link !== undefined) it.link = normLink(payload.link);
+        if (payload.done !== undefined) it.done = !!payload.done;
         if (payload.cost !== undefined) it.cost = Math.max(0, Number(payload.cost) || 0);
       }
       break;
@@ -171,13 +227,14 @@ function applyAction(trip, action, user) {
     case "autoPlan": {
       if (!Array.isArray(payload.assignments)) return false;
       if (payload.replace) for (const d of trip.itinerary) d.items = [];
-      for (const a of payload.assignments) {
+      for (const a of payload.assignments.slice(0, 60)) {
+        if (!a || typeof a !== "object") continue;
         const d = trip.itinerary.find((x) => x.id === a.dayId);
         if (!d || !Array.isArray(a.items)) continue;
-        for (const src of a.items) {
+        for (const src of a.items.slice(0, 200)) {
           d.items.push({
-            id: uid(), time: src.time || "", place: src.place || "", memo: src.memo || "",
-            lat: src.lat ?? null, lon: src.lon ?? null, addr: src.addr || "",
+            id: uid(), time: src.time || "", place: String(src.place || "").slice(0, 500), memo: String(src.memo || "").slice(0, 500),
+            lat: normCoord(src.lat), lon: normCoord(src.lon), addr: String(src.addr || "").slice(0, 500),
           });
         }
       }
@@ -190,10 +247,11 @@ function applyAction(trip, action, user) {
       const byId = {};
       for (const d of trip.itinerary) for (const it of d.items) byId[it.id] = it;
       for (const d of trip.itinerary) d.items = [];
-      for (const a of payload.assignments) {
+      for (const a of payload.assignments.slice(0, 60)) {
+        if (!a || typeof a !== "object") continue;
         const d = trip.itinerary.find((x) => x.id === a.dayId);
         if (!d || !Array.isArray(a.items)) continue;
-        for (const s of a.items) {
+        for (const s of a.items.slice(0, 200)) {
           const it = byId[s.id];
           if (!it) continue;
           if (s.time !== undefined) it.time = s.time;
@@ -209,10 +267,10 @@ function applyAction(trip, action, user) {
     case "addExpense":
       trip.expenses.push({
         id: uid(),
-        desc: payload.desc || "",
-        amount: Number(payload.amount) || 0,
+        desc: String(payload.desc || "").slice(0, 300),
+        amount: Math.max(0, Number(payload.amount) || 0),
         payer: payload.payer || "",
-        sharedBy: Array.isArray(payload.sharedBy) ? payload.sharedBy : [],
+        sharedBy: Array.isArray(payload.sharedBy) ? payload.sharedBy.filter((x) => typeof x === "string").slice(0, 50) : [],
       });
       break;
     case "updateExpense": {
@@ -231,8 +289,8 @@ function applyAction(trip, action, user) {
 
     case "addPlace":
       trip.places.push({
-        id: uid(), name: payload.name || "", memo: payload.memo || "", votes: [],
-        lat: payload.lat ?? null, lon: payload.lon ?? null, addr: payload.addr || "",
+        id: uid(), name: String(payload.name || "").slice(0, 300), memo: String(payload.memo || "").slice(0, 300), votes: [],
+        lat: payload.lat ?? null, lon: payload.lon ?? null, addr: String(payload.addr || "").slice(0, 300),
       });
       break;
     case "updatePlace": {
@@ -256,7 +314,7 @@ function applyAction(trip, action, user) {
     }
 
     case "addPacking":
-      trip.packing.push({ id: uid(), text: payload.text || "", assignee: payload.assignee || "", done: false });
+      trip.packing.push({ id: uid(), text: String(payload.text || "").slice(0, 300), assignee: payload.assignee || "", done: false });
       break;
     case "updatePacking": {
       const p = trip.packing.find((x) => x.id === payload.id);
@@ -345,7 +403,14 @@ app.get("/api/image", async (req, res) => {
   if (!rest) return res.json({ url: null, error: "no_key" });
   try {
     const url = "https://dapi.kakao.com/v2/search/image?size=1&sort=accuracy&query=" + encodeURIComponent(q);
-    const r = await fetch(url, { headers: { Authorization: "KakaoAK " + rest } });
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 9000);
+    let r;
+    try {
+      r = await fetch(url, { headers: { Authorization: "KakaoAK " + rest }, signal: controller.signal });
+    } finally {
+      clearTimeout(timer);
+    }
     if (!r.ok) return res.json({ url: null });
     const data = await r.json();
     const doc = data.documents && data.documents[0];
@@ -388,12 +453,12 @@ app.get("/api/ai/course", async (req, res) => {
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 30000);
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(key)}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
     let r;
     try {
       r = await fetch(url, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "x-goog-api-key": key },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
           generationConfig: { responseMimeType: "application/json", temperature: 0.9 },
@@ -424,12 +489,20 @@ app.get("/api/transit", async (req, res) => {
   const key = getOdsayKey();
   if (!key) return res.json({ error: "no_key" });
   const { sx, sy, ex, ey } = req.query;
-  if (!sx || !sy || !ex || !ey) return res.status(400).json({ error: "bad_params" });
+  const nsx = parseFloat(sx), nsy = parseFloat(sy), nex = parseFloat(ex), ney = parseFloat(ey);
+  if (![nsx, nsy, nex, ney].every(Number.isFinite)) return res.status(400).json({ error: "bad_params" });
   try {
     const url = "https://api.odsay.com/v1/api/searchPubTransPathT"
-      + `?apiKey=${encodeURIComponent(key)}&SX=${encodeURIComponent(sx)}&SY=${encodeURIComponent(sy)}`
-      + `&EX=${encodeURIComponent(ex)}&EY=${encodeURIComponent(ey)}`;
-    const r = await fetch(url);
+      + `?apiKey=${encodeURIComponent(key)}&SX=${encodeURIComponent(nsx)}&SY=${encodeURIComponent(nsy)}`
+      + `&EX=${encodeURIComponent(nex)}&EY=${encodeURIComponent(ney)}`;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 9000);
+    let r;
+    try {
+      r = await fetch(url, { signal: controller.signal });
+    } finally {
+      clearTimeout(timer);
+    }
     const data = await r.json();
     const err = Array.isArray(data.error) ? data.error[0] : data.error;
     if (err) return res.json({ error: "odsay", code: err.code, message: err.message || err.msg || "" });
@@ -524,7 +597,7 @@ app.get("/api/nearby", async (req, res) => {
 });
 
 const server = createServer(app);
-const io = new Server(server);
+const io = new Server(server, { maxHttpBufferSize: 262144 });
 
 const presence = {}; // tripId -> Map(socketId -> { name, editing })
 function presenceFor(id) {
@@ -564,8 +637,15 @@ io.on("connection", (socket) => {
   });
 
   socket.on("action", (action) => {
+    if (!action || typeof action !== "object") return;
     if (!tripId || !trips[tripId]) return;
-    const changed = applyAction(trips[tripId], action, userName);
+    let changed = false;
+    try {
+      changed = applyAction(trips[tripId], action, userName);
+    } catch (e) {
+      console.error("액션 처리 실패:", e);
+      return;
+    }
     if (changed) {
       persist();
       io.to(tripId).emit("state", trips[tripId]);

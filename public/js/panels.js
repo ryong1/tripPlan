@@ -81,7 +81,7 @@ function renderItineraryItem(day, it) {
         onchange: (e) => send("updateItem", { dayId: day.id, id: it.id, memo: e.target.value }) })),
       field("지출 금액 (원) — 예산에 반영돼요", el("div", { class: "cost-input" },
         el("input", { type: "number", min: "0", inputmode: "numeric", value: it.cost || "", placeholder: "예: 79000",
-          onchange: (e) => send("updateItem", { dayId: day.id, id: it.id, cost: Number(e.target.value) || 0 }) }),
+          onchange: (e) => send("updateItem", { dayId: day.id, id: it.id, cost: Math.max(0, Number(e.target.value) || 0) }) }),
         el("span", { class: "cost-won" }, "원"))),
       field("링크 (예약·정보)", el("div", { class: "row" },
         el("input", { type: "url", value: it.link || "", placeholder: "https://",
@@ -232,8 +232,11 @@ function computeBalances() {
     if (!sharers.length) continue;
     touch(e.payer);
     bal[e.payer] += e.amount;
-    const per = e.amount / sharers.length;
-    for (const s of sharers) { touch(s); bal[s] -= per; }
+    // 지분을 정수 원으로 배분: 몫은 균등, 나머지는 앞에서부터 1원씩 추가로 차감
+    const n = sharers.length;
+    const per = Math.floor(e.amount / n);
+    let rem = e.amount - per * n;
+    for (const s of sharers) { touch(s); bal[s] -= per; if (rem > 0) { bal[s] -= 1; rem -= 1; } }
   }
   return bal;
 }

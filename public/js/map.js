@@ -89,6 +89,12 @@ function updateMap() {
   else if (!mapCollapsed) {
     if (bounds.length === 1) map.setView(bounds[0], 14);
     else if (bounds.length > 1) map.fitBounds(bounds, { padding: [45, 45] });
+    else {
+      // 핀이 하나도 없으면 목적지 중심(있으면)으로, 없으면 대한민국 중심으로 이동
+      const c = recCenterCache.get(state.destination);
+      if (c && c !== "pending" && c.lat != null && c.lon != null) map.setView([c.lat, c.lon], 11);
+      else map.setView([36.5, 127.8], 7);
+    }
   }
 }
 function recIcon(focus) {
@@ -163,7 +169,8 @@ function searchBox(placeholder, onPick) {
   input.addEventListener("keydown", (e) => {
     if (e.key === "Enter") { const v = input.value.trim(); if (v) addByText(v); }
   });
-  document.addEventListener("click", (e) => { if (!wrap.contains(e.target)) results.classList.add("hidden"); });
+  // 외부 클릭 대신 blur로 닫기(결과 onclick이 먼저 처리되도록 지연)
+  input.addEventListener("blur", () => { setTimeout(() => results.classList.add("hidden"), 200); });
   return wrap;
 }
 

@@ -41,9 +41,17 @@ function loadWeather() {
         apply(d.daily, false); return;
       }
       // 예보 범위(약 16일) 밖 → 작년 같은 기간(예년) 기록으로 대체
-      const ly = (iso) => (parseInt(iso.slice(0, 4)) - 1) + iso.slice(4);
+      const isLeap = (y) => (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+      // 대상 연도에 2/29가 없으면 02-28로 보정(윤년 처리)
+      const shiftYear = (iso, delta) => {
+        const y = parseInt(iso.slice(0, 4)) + delta;
+        let md = iso.slice(4); // "-MM-DD"
+        if (md === "-02-29" && !isLeap(y)) md = "-02-28";
+        return y + md;
+      };
+      const ly = (iso) => shiftYear(iso, -1);
       fetch(`https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}&${daily}&start_date=${ly(start)}&end_date=${ly(end)}`)
-        .then((r) => r.json()).then((a) => { if (a.daily && a.daily.time) apply(a.daily, true, (t) => (parseInt(t.slice(0, 4)) + 1) + t.slice(4)); })
+        .then((r) => r.json()).then((a) => { if (a.daily && a.daily.time && a.daily.temperature_2m_max.some((v) => v != null)) apply(a.daily, true, (t) => shiftYear(t, 1)); })
         .catch(() => {});
     }).catch(() => {});
 }
@@ -189,9 +197,10 @@ async function runAiCourse(prefs) {
     const qs = `dest=${encodeURIComponent(state.destination)}&days=${days.length}`
       + `&style=${encodeURIComponent(prefs.style || "balanced")}&musts=${encodeURIComponent((prefs.musts || []).join(","))}`;
     const res = await fetch(`/api/ai/course?${qs}`);
+    if (!res.ok) { loading.remove(); alert("AI 응답을 받지 못했어요. 잠시 후 다시 시도해주세요."); return; }
     const data = await res.json();
-    if (data.error === "no_key") { alert("AI 추천을 쓰려면 Gemini 무료 API 키가 필요해요.\n서버 data/gemini.key 또는 환경변수 GEMINI_API_KEY에 넣어주세요."); return; }
-    if (!data.days || !Array.isArray(data.days)) { alert("AI 응답을 받지 못했어요. 잠시 후 다시 시도해주세요."); return; }
+    if (data.error === "no_key") { loading.remove(); alert("AI 추천을 쓰려면 Gemini 무료 API 키가 필요해요.\n서버 data/gemini.key 또는 환경변수 GEMINI_API_KEY에 넣어주세요."); return; }
+    if (!data.days || !Array.isArray(data.days)) { loading.remove(); alert("AI 응답을 받지 못했어요. 잠시 후 다시 시도해주세요."); return; }
     setLoad("장소 위치를 찾는 중…");
     const assignments = [];
     let total = 0;
@@ -200,23 +209,28 @@ async function runAiCourse(prefs) {
       const items = [];
       for (const it of (aiDay.items || [])) {
         if (!it || !it.place) continue;
-        const hits = await searchPlaces(it.place, true); // 목적지 주변으로 좌표 조회(정확도 우선)
-        const g = hits[0];
-        // OSM이 못 찾으면 AI가 준 대략 좌표를 사용 (유효한 좌표 범위일 때만)
+        // AI 좌표 우선 — 유효하면 OSM 호출 생략(순차 지오코딩 429 폭주 방지)
         const aiOk = typeof it.lat === "number" && typeof it.lon === "number"
           && Math.abs(it.lat) <= 90 && Math.abs(it.lon) <= 180 && (it.lat !== 0 || it.lon !== 0);
-        const lat = g ? g.lat : (aiOk ? it.lat : null);
-        const lon = g ? g.lon : (aiOk ? it.lon : null);
+        let lat = null, lon = null, addr = "";
+        if (aiOk) {
+          lat = it.lat; lon = it.lon;
+        } else {
+          const hits = await searchPlaces(it.place, true); // AI 좌표가 없을 때만 조회(정확도 우선)
+          const g = hits[0];
+          if (g) { lat = g.lat; lon = g.lon; addr = g.addr || ""; }
+        }
         items.push({ place: it.place, time: it.time || "", memo: it.memo || "",
-          addr: g ? g.addr : "", lat, lon });
+          addr, lat, lon });
         total++;
       }
       assignments.push({ dayId: days[i].id, items });
     }
-    if (!total) { alert("AI가 장소를 만들지 못했어요. 잠시 후 다시 시도해주세요."); return; }
+    if (!total) { loading.remove(); alert("AI가 장소를 만들지 못했어요. 잠시 후 다시 시도해주세요."); return; }
     send("autoPlan", { assignments, replace: true });
     toast(`AI 추천 코스 완성 · ${total}곳`);
-  } catch {
+  } catch (e) {
+    console.error(e);
     alert("AI 추천 중 오류가 났어요. 잠시 후 다시 시도해주세요.");
   } finally {
     loading.remove();
@@ -232,14 +246,16 @@ function renderSummaryHeader() {
   let dday = "날짜 미정";
   if (state.startDate) {
     const day = 86400000;
-    const s = new Date(state.startDate), e = new Date(state.endDate || state.startDate);
-    const t = new Date(today);
+    // 날짜 문자열을 로컬 날짜로 파싱(UTC 파싱 off-by-one 방지)
+    const local = (iso) => { const [y, m, d] = iso.split("-").map(Number); return new Date(y, m - 1, d); };
+    const s = local(state.startDate), e = local(state.endDate || state.startDate);
+    const t = local(today);
     if (t < s) dday = `D-${Math.round((s - t) / day)}`;
     else if (t <= e) dday = `${Math.round((t - s) / day) + 1}일차`;
     else dday = "여행 종료";
   }
   const totalPlaces = state.itinerary.reduce((n, d) => n + d.items.length, 0);
-  const spent = state.expenses.reduce((s, e) => s + e.amount, 0) + tripSpent();
+  const spent = state.expenses.reduce((s, e) => s + (Number(e.amount) || 0), 0) + tripSpent();
   const totalBudget = (state.budget || 0) * (state.members.length || 1);
   let budgetText = "예산 미설정", budgetCls = "muted";
   if (totalBudget > 0) {
@@ -311,7 +327,7 @@ function renderDay(day) {
     el("div", { class: "day-date" }, fmtDate(day.date) || "날짜 미정"),
     ...(isToday ? [el("span", { class: "today-badge" }, "오늘")] : []),
     ...(spentToday > 0 ? [el("span", { class: "day-spend", title: "이 날의 지출 합계" }, "지출 " + won(spentToday))] : []),
-    ...(w ? [el("span", { class: "day-weather" }, `${wmoIcon(w.code)} ${Math.round(w.tmax)}° / ${Math.round(w.tmin)}°${weatherNormal ? " 예년" : ""}`)] : [])
+    ...(w ? [el("span", { class: "day-weather" }, `${wmoIcon(w.code)} ${w.tmax != null ? Math.round(w.tmax) + "°" : "—"} / ${w.tmin != null ? Math.round(w.tmin) + "°" : "—"}${weatherNormal ? " 예년" : ""}`)] : [])
   ));
 
   const coordItems = day.items.filter((i) => i.lat != null && i.lon != null);

@@ -412,3 +412,18 @@ button.sm { padding: 7px 12px; font-size: 14px; }
 .nc-name { font-weight: 600; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nc-addr { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 2px; }
 .nearby-empty { color: var(--muted); font-size: 13px; padding: 10px 2px; }
+
+/* 추천 카드 이미지·액션 */
+.nearby-card { align-items: center; }
+.nc-thumb { flex: none; width: 56px; height: 56px; border-radius: 10px; background: #e7edf6 center/cover no-repeat; border: 1px solid var(--line); position: relative; }
+.nc-thumb::after { content: "장소"; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #9fb0cc; }
+.nc-thumb.has::after { display: none; }
+.nc-actions { flex: none; display: flex; gap: 6px; }
+.pin-rec { display: block; width: 14px; height: 14px; border-radius: 50%; background: #f59e0b; border: 2px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.35); }
+.pin-rec.focus { background: var(--danger); transform: scale(1.35); }
+/* 추천 상세 모달 */
+.rec-detail-img { width: 100%; height: 180px; border-radius: 14px; background: #e7edf6 center/cover no-repeat; margin-bottom: 12px; }
+.rec-detail-img.has { }
+.rec-detail h3 { margin: 4px 0 2px; }
+.rec-detail-actions { display: flex; flex-wrap: wrap; gap: 6px; margin: 14px 0; }
+.rec-detail-label { font-size: 13px; color: var(--muted); font-weight: 600; margin-bottom: 6px; }

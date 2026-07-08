@@ -497,12 +497,30 @@ function updateMap() {
     if (line.length > 1) L.polyline(line, { color, weight: 3, opacity: 0.75 }).addTo(mapRoutes);
   });
 
+  // 지역 추천 위치 핀 (추천 패널 열려 있을 때)
+  if (recState) {
+    const center = recCenterCache.get(state.destination);
+    if (center && center !== "pending") {
+      const recs = nearbyCache.get(`${center.lat.toFixed(3)},${center.lon.toFixed(3)}|${recState}`);
+      if (Array.isArray(recs)) recs.slice(0, 10).forEach((r) => {
+        const isFocus = focusRec && focusRec.name === r.name && Math.abs(focusRec.lat - r.lat) < 1e-6;
+        L.marker([r.lat, r.lon], { icon: recIcon(isFocus) }).bindPopup(`<b>${r.name}</b><br>${catKr(r.category)}`).addTo(mapMarkers);
+      });
+    }
+  }
+
   buildMapToolbar(legendDays);
 
-  if (!mapCollapsed) {
+  const doFocus = focusRec;
+  if (doFocus) { map.setView([doFocus.lat, doFocus.lon], 16); focusRec = null; }
+  else if (!mapCollapsed) {
     if (bounds.length === 1) map.setView(bounds[0], 14);
     else if (bounds.length > 1) map.fitBounds(bounds, { padding: [45, 45] });
   }
+}
+function recIcon(focus) {
+  return L.divIcon({ className: "map-pin", html: `<span class="pin-rec${focus ? " focus" : ""}"></span>`,
+    iconSize: [16, 16], iconAnchor: [8, 8], popupAnchor: [0, -8] });
 }
 
 function buildMapToolbar(legendDays) {
@@ -555,7 +573,7 @@ function searchBox(placeholder, onPick) {
 }
 
 // ── 날씨 (Open-Meteo, 무료·키 불필요) ──
-let weatherByDate = null, weatherKey = null;
+let weatherByDate = null, weatherKey = null, weatherNormal = false;
 function wmoIcon(code) {
   if (code === 0) return "☀️";
   if (code <= 2) return "🌤️";
@@ -573,20 +591,32 @@ function loadWeather() {
   if (!days.length || !days[0].date) return;
   let lat = null, lon = null;
   for (const d of days) { for (const it of d.items) if (it.lat != null) { lat = it.lat; lon = it.lon; break; } if (lat != null) break; }
-  if (lat == null) return; // 좌표가 있는 장소가 아직 없음
+  if (lat == null) { // 항목 좌표가 없으면 목적지 좌표로
+    const c = recCenterCache.get(state.destination);
+    if (c && c !== "pending") { lat = c.lat; lon = c.lon; }
+  }
+  if (lat == null) return;
   const start = days[0].date, end = days[days.length - 1].date;
   const key = `${lat.toFixed(2)},${lon.toFixed(2)},${start},${end}`;
   if (key === weatherKey) return; // 이미 조회함
   weatherKey = key;
-  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}`
-    + `&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto&start_date=${start}&end_date=${end}`;
-  fetch(url).then((r) => r.json()).then((d) => {
-    if (!d.daily || !d.daily.time) return;
+  const apply = (D, normal, mapDate) => {
     const m = {};
-    d.daily.time.forEach((t, i) => { m[t] = { code: d.daily.weather_code[i], tmax: d.daily.temperature_2m_max[i], tmin: d.daily.temperature_2m_min[i] }; });
-    weatherByDate = m;
-    render();
-  }).catch(() => {});
+    D.time.forEach((t, i) => { m[mapDate ? mapDate(t) : t] = { code: D.weather_code[i], tmax: D.temperature_2m_max[i], tmin: D.temperature_2m_min[i] }; });
+    weatherByDate = m; weatherNormal = normal; render();
+  };
+  const daily = "daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto";
+  fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&${daily}&start_date=${start}&end_date=${end}`)
+    .then((r) => r.json()).then((d) => {
+      if (d.daily && d.daily.time && d.daily.time.length && d.daily.temperature_2m_max.some((v) => v != null)) {
+        apply(d.daily, false); return;
+      }
+      // 예보 범위(약 16일) 밖 → 작년 같은 기간(예년) 기록으로 대체
+      const ly = (iso) => (parseInt(iso.slice(0, 4)) - 1) + iso.slice(4);
+      fetch(`https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}&${daily}&start_date=${ly(start)}&end_date=${ly(end)}`)
+        .then((r) => r.json()).then((a) => { if (a.daily && a.daily.time) apply(a.daily, true, (t) => (parseInt(t.slice(0, 4)) + 1) + t.slice(4)); })
+        .catch(() => {});
+    }).catch(() => {});
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -721,7 +751,7 @@ function renderDay(day) {
   card.append(el("div", { class: "day-head" },
     el("div", { class: "day-date" }, fmtDate(day.date) || "날짜 미정"),
     ...(isToday ? [el("span", { class: "today-badge" }, "오늘")] : []),
-    ...(w ? [el("span", { class: "day-weather" }, `${wmoIcon(w.code)} ${Math.round(w.tmax)}° / ${Math.round(w.tmin)}°`)] : []),
+    ...(w ? [el("span", { class: "day-weather" }, `${wmoIcon(w.code)} ${Math.round(w.tmax)}° / ${Math.round(w.tmin)}°${weatherNormal ? " 예년" : ""}`)] : []),
     el("button", { class: "del tiny", onclick: () => confirmDel("이 날짜를 통째로 삭제할까요?") && send("removeDay", { id: day.id }) }, "삭제")
   ));
 
@@ -840,21 +870,86 @@ function paintRegionRecs(cat, list) {
   }
 }
 
+const recImgCache = new Map();   // wikiKey/imageUrl -> url|null
+let focusRec = null;             // '지도에서 보기'로 강조할 추천
+const CAT_KR = { restaurant: "식당", cafe: "카페", bar: "술집", fast_food: "분식", pub: "펍",
+  attraction: "볼거리", museum: "박물관", viewpoint: "전망대", theme_park: "테마파크",
+  artwork: "예술작품", zoo: "동물원", aquarium: "아쿠아리움", gallery: "갤러리" };
+const catKr = (c) => CAT_KR[c] || "장소";
+
+function wikiKey(rec) {
+  if (!rec.wiki) return null;
+  const p = rec.wiki.split(":");
+  const lang = p.length > 1 ? p[0] : "ko";
+  const title = p.length > 1 ? p.slice(1).join(":") : p[0];
+  return { lang, title, key: `${lang}:${title}` };
+}
+function cachedRecImage(rec) {
+  if (rec.image && /^https?:\/\//i.test(rec.image)) return rec.image;
+  const wk = wikiKey(rec);
+  if (wk && recImgCache.has(wk.key)) return recImgCache.get(wk.key);
+  return undefined;
+}
+function resolveRecImage(rec, onDone) {
+  const wk = wikiKey(rec);
+  if (!wk) { onDone(null); return; }
+  if (recImgCache.has(wk.key)) { onDone(recImgCache.get(wk.key)); return; }
+  fetch(`https://${wk.lang}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(wk.title)}`)
+    .then((r) => r.json()).then((d) => { const u = (d.thumbnail && d.thumbnail.source) || null; recImgCache.set(wk.key, u); onDone(u); })
+    .catch(() => { recImgCache.set(wk.key, null); onDone(null); });
+}
+function thumbEl(rec) {
+  const t = el("div", { class: "nc-thumb" });
+  const setImg = (u) => { if (u) { t.style.backgroundImage = `url("${u}")`; t.classList.add("has"); } };
+  const cached = cachedRecImage(rec);
+  if (cached !== undefined) setImg(cached); else resolveRecImage(rec, setImg);
+  return t;
+}
+function dayButtonsFor(rec, onAfter) {
+  const days = state.itinerary;
+  const row = el("div", { class: "rec-days" });
+  if (!days.length) { row.append(el("span", { class: "nearby-empty" }, "먼저 날짜를 추가하세요")); return row; }
+  days.forEach((d, di) => row.append(el("button", { class: "tiny",
+    onclick: () => { send("addItem", { dayId: d.id, place: rec.name, addr: rec.addr || "", lat: rec.lat, lon: rec.lon, time: slotTime(d.items.length) }); toast(`${fmtDate(d.date) || (di + 1) + "일차"}에 ${rec.name} 추가`); if (onAfter) onAfter(); } },
+    fmtDate(d.date) || `${di + 1}일차`)));
+  return row;
+}
+function openRecDetail(rec) {
+  const img = el("div", { class: "rec-detail-img" });
+  const setImg = (u) => { if (u) { img.style.backgroundImage = `url("${u}")`; img.classList.add("has"); } };
+  const cached = cachedRecImage(rec);
+  if (cached !== undefined) setImg(cached); else resolveRecImage(rec, setImg);
+  const kakao = `https://map.kakao.com/link/map/${encodeURIComponent(rec.name)},${rec.lat},${rec.lon}`;
+  const google = `https://www.google.com/maps/search/?api=1&query=${rec.lat},${rec.lon}`;
+  const modal = el("div", { class: "modal auto-modal" },
+    el("div", { class: "modal-card rec-detail" },
+      img,
+      el("h3", {}, rec.name),
+      el("div", { class: "sub" }, [catKr(rec.category), rec.cuisine, rec.addr].filter(Boolean).join(" · ") || "위치 정보"),
+      el("div", { class: "rec-detail-actions" },
+        el("button", { class: "tiny", onclick: () => { focusRec = rec; modal.remove(); updateMap(); const mc = $("#mapCanvas"); if (mc) mc.scrollIntoView({ behavior: "smooth", block: "center" }); } }, "지도에서 보기"),
+        el("button", { class: "tiny", onclick: () => window.open(kakao, "_blank", "noopener") }, "카카오맵"),
+        el("button", { class: "tiny", onclick: () => window.open(google, "_blank", "noopener") }, "구글맵"),
+        ...(rec.website ? [el("button", { class: "tiny", onclick: () => openLink(rec.website) }, "웹사이트")] : [])),
+      el("div", { class: "rec-detail-label" }, "일정에 추가"),
+      dayButtonsFor(rec, () => modal.remove()),
+      el("button", { class: "ghost close-modal", onclick: () => modal.remove() }, "닫기")));
+  document.body.append(modal);
+}
 function fillRegionCards(list, items) {
   if (!items.length) { list.append(el("div", { class: "nearby-empty" }, "추천이 없어요")); return; }
-  const days = state.itinerary;
-  for (const rec of items.slice(0, 12)) {
-    const daysRow = el("div", { class: "rec-days hidden" });
-    if (!days.length) daysRow.append(el("span", { class: "nearby-empty" }, "먼저 날짜를 추가하세요"));
-    else days.forEach((d, di) => daysRow.append(el("button", { class: "tiny",
-      onclick: () => { send("addItem", { dayId: d.id, place: rec.name, addr: rec.addr || "", lat: rec.lat, lon: rec.lon, time: slotTime(d.items.length) }); toast(`${fmtDate(d.date) || (di + 1) + "일차"}에 ${rec.name} 추가`); } },
-      fmtDate(d.date) || `${di + 1}일차`)));
+  for (const rec of items.slice(0, 10)) {
+    const daysRow = dayButtonsFor(rec);
+    daysRow.classList.add("hidden");
     list.append(el("div", { class: "rec-item" },
       el("div", { class: "nearby-card" },
-        el("div", { class: "nc-info" },
+        thumbEl(rec),
+        el("div", { class: "nc-info", style: "cursor:pointer", onclick: () => openRecDetail(rec) },
           el("div", { class: "nc-name" }, rec.name),
-          rec.addr ? el("div", { class: "nc-addr" }, rec.addr) : null),
-        el("button", { class: "tiny primary", onclick: (e) => { e.currentTarget.closest(".rec-item").querySelector(".rec-days").classList.toggle("hidden"); } }, "일정에 추가")),
+          el("div", { class: "nc-addr" }, [catKr(rec.category), rec.addr].filter(Boolean).join(" · "))),
+        el("div", { class: "nc-actions" },
+          el("button", { class: "tiny", onclick: () => openRecDetail(rec) }, "자세히"),
+          el("button", { class: "tiny primary", onclick: (e) => { e.currentTarget.closest(".rec-item").querySelector(".rec-days").classList.toggle("hidden"); } }, "추가"))),
       daysRow));
   }
 }

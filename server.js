@@ -347,8 +347,15 @@ app.get("/api/nearby", async (req, res) => {
       if (seen.has(key)) continue;
       seen.add(key);
       const addr = [t["addr:city"], t["addr:street"], t["addr:housenumber"]].filter(Boolean).join(" ");
-      results.push({ name, lat: elat, lon: elon, category: t.amenity || t.tourism || "", addr });
-      if (results.length >= 30) break;
+      results.push({
+        name, lat: elat, lon: elon, category: t.amenity || t.tourism || "", addr,
+        image: t.image || t["image:0"] || "",
+        wiki: t.wikipedia || "",
+        cuisine: t.cuisine || "",
+        phone: t.phone || t["contact:phone"] || "",
+        website: t.website || t["contact:website"] || "",
+      });
+      if (results.length >= 40) break;
     }
     res.json(results);
   } catch (e) {

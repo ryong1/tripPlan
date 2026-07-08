@@ -154,6 +154,28 @@ function applyAction(trip, action, user) {
       break;
     }
 
+    case "reflow": {
+      // 기존 항목(메모·링크·완료 등)을 보존하며 날짜/순서만 재배치
+      if (!Array.isArray(payload.assignments)) return false;
+      const byId = {};
+      for (const d of trip.itinerary) for (const it of d.items) byId[it.id] = it;
+      for (const d of trip.itinerary) d.items = [];
+      for (const a of payload.assignments) {
+        const d = trip.itinerary.find((x) => x.id === a.dayId);
+        if (!d || !Array.isArray(a.items)) continue;
+        for (const s of a.items) {
+          const it = byId[s.id];
+          if (!it) continue;
+          if (s.time !== undefined) it.time = s.time;
+          d.items.push(it);
+          delete byId[s.id];
+        }
+      }
+      const leftover = Object.values(byId);
+      if (leftover.length && trip.itinerary[0]) trip.itinerary[0].items.push(...leftover);
+      break;
+    }
+
     case "addExpense":
       trip.expenses.push({
         id: uid(),

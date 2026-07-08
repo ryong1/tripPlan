@@ -644,57 +644,24 @@ function loadWeather() {
     }).catch(() => {});
 }
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
-// 장소 목록을 붙여넣으면 위치 조회 → 동선 정렬 → 날짜 분배 → 시간 배정
-function openAutoPlan() {
-  if (!state.itinerary.length) {
-    alert("먼저 여행 날짜가 필요해요. 일정표 아래에서 날짜를 추가하거나, 새 여행을 만들 때 기간을 넣어주세요.");
-    return;
-  }
-  const ta = el("textarea", { class: "auto-ta", rows: "7",
-    placeholder: "가고 싶은 곳을 한 줄에 하나씩 적어주세요" });
-  const status = el("div", { class: "auto-status" }, "");
-  const genBtn = el("button", { class: "primary" }, "생성");
-  const modal = el("div", { class: "modal auto-modal" },
-    el("div", { class: "modal-card" },
-      el("h3", {}, "장소로 자동 일정 짜기"),
-      el("p", { class: "sub" }, "가고 싶은 곳을 한 줄에 하나씩 적어주세요. 위치를 찾아 동선(가까운 순)으로 날짜에 나눠 담아요."),
-      ta, status,
-      el("div", { class: "row", style: "margin-top:12px" },
-        genBtn,
-        el("button", { class: "ghost", onclick: () => modal.remove() }, "닫기"))));
-  genBtn.addEventListener("click", () => runAutoPlan(ta, status, genBtn, modal));
-  document.body.append(modal);
-  ta.focus();
-}
-
-async function runAutoPlan(ta, status, genBtn, modal) {
-  const names = ta.value.split(/[\n,]/).map((s) => s.trim()).filter(Boolean);
-  if (!names.length) { status.textContent = "장소를 한 개 이상 입력해주세요."; return; }
+// 이미 담아둔 장소들을 최적 동선으로 날짜에 재배치 (항목 데이터는 보존)
+function optimizeRoute() {
   const days = state.itinerary;
-  let replace = false;
-  if (days.some((d) => d.items.length)) {
-    replace = confirm("이미 일정에 항목이 있어요.\n\n[확인] 기존 일정을 지우고 새로 생성\n[취소] 기존 항목 뒤에 이어붙이기");
-  }
-  genBtn.disabled = true;
-  const places = [];
-  for (let i = 0; i < names.length; i++) {
-    status.textContent = `위치 찾는 중… (${i + 1}/${names.length}) ${names[i]}`;
-    places.push(await ensureCoords({ name: names[i], addr: "", lat: null, lon: null }));
-    if (i < names.length - 1) await sleep(500); // Nominatim 예의상 간격
-  }
-  const geo = places.filter((p) => p.lat != null && p.lon != null);
-  const noGeo = places.filter((p) => p.lat == null || p.lon == null);
+  if (!days.length) { alert("여행 날짜가 먼저 필요해요."); return; }
+  const all = [];
+  days.forEach((d) => d.items.forEach((it) => all.push(it)));
+  const geo = all.filter((it) => it.lat != null && it.lon != null);
+  if (geo.length < 2) { alert("정리할 장소가 2곳 이상 필요해요.\n추천이나 검색으로 가고 싶은 곳을 먼저 담아주세요."); return; }
+  if (!confirm("담아둔 장소들을 가까운 순서(최적 동선)로 날짜에 다시 배치할까요?\n순서와 날짜가 바뀔 수 있어요.")) return;
+  const noGeo = all.filter((it) => it.lat == null || it.lon == null);
   const ordered = [...nearestNeighborPath(geo), ...noGeo];
   const chunks = splitBalanced(ordered, days.length);
   const assignments = days.map((d, di) => ({
     dayId: d.id,
-    items: chunks[di].map((p, i) => ({ place: p.name, addr: p.addr || "", lat: p.lat ?? null, lon: p.lon ?? null, time: slotTime(i) })),
+    items: chunks[di].map((it, i) => ({ id: it.id, time: slotTime(i) })),
   }));
-  send("autoPlan", { assignments, replace });
-  modal.remove();
-  toast(`자동 일정 완료 · ${places.length}곳` + (noGeo.length ? ` (위치 못 찾은 ${noGeo.length}곳은 위치 없이 추가)` : ""));
+  send("reflow", { assignments });
+  toast("최적 동선으로 정리했어요");
 }
 
 function renderSummaryHeader() {
@@ -738,7 +705,7 @@ function renderItinerary() {
   root.innerHTML = "";
   root.append(el("div", { class: "itin-head" },
     el("h2", { class: "pane-title" }, "일정표"),
-    el("button", { class: "primary sm", onclick: openAutoPlan }, "자동으로 일정 짜기")));
+    el("button", { class: "primary sm", onclick: optimizeRoute }, "최적 동선으로 정리")));
 
   if (state.startDate) root.append(renderSummaryHeader());
   if (state.destination) root.append(renderRegionRecs());

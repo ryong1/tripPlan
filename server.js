@@ -363,9 +363,20 @@ app.get("/api/ai/course", async (req, res) => {
   const dest = String(req.query.dest || "").trim();
   const days = Math.min(10, Math.max(1, parseInt(req.query.days) || 1));
   if (!dest) return res.status(400).json({ error: "bad_params" });
+  // 여행 스타일 + 꼭 넣고 싶은 요소 (클라이언트 옵션)
+  const STYLE_KR = {
+    activity: "액티비티·체험 위주(해양 레저, 트레킹, 놀거리 등 활동적인 일정)",
+    healing: "여유롭고 서정적인 힐링 위주(자연 풍경, 조용한 산책, 감성 스팟)",
+    food: "맛집·먹거리 탐방 위주",
+    balanced: "관광·맛집·휴식이 고루 섞인 균형 잡힌 구성",
+  };
+  const style = STYLE_KR[String(req.query.style)] || STYLE_KR.balanced;
+  const musts = String(req.query.musts || "").split(",").map((s) => s.trim()).filter(Boolean).slice(0, 8);
+  const mustsLine = musts.length ? `\n- 여행 중 다음 요소를 반드시 포함하세요: ${musts.join(", ")}.` : "";
   const prompt = `당신은 한국 여행 전문 플래너입니다. 목적지 "${dest}"에서 ${days}일 여행 일정을 만들어 주세요.
 각 날은 하루 4~6곳을 "오전 관광 → 점심 식당 → 오후 관광/체험 → 카페 → 저녁 식당" 흐름으로 구성하세요.
 규칙:
+- 여행 스타일: ${style}.${mustsLine}
 - 실제로 존재하는 유명하고 평이 좋은 장소명을 한국어로 정확하게 쓰세요.
 - 한 항목에는 반드시 한 장소만. "&"나 쉼표로 여러 장소를 묶지 마세요.
 - 각 장소에 방문 시간(time, HH:MM 24시간제)과 한 줄 추천 이유(memo, 25자 내외)를 붙이세요.

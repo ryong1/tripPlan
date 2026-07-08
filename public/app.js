@@ -972,6 +972,10 @@ async function runAiCourse(prefs) {
   }
 }
 
+const itemCost = (it) => Math.max(0, Number(it.cost) || 0);
+const dayCost = (d) => d.items.reduce((m, it) => m + itemCost(it), 0);
+const tripSpent = () => state.itinerary.reduce((n, d) => n + dayCost(d), 0);
+
 function renderSummaryHeader() {
   const today = todayISO();
   let dday = "날짜 미정";
@@ -984,7 +988,7 @@ function renderSummaryHeader() {
     else dday = "여행 종료";
   }
   const totalPlaces = state.itinerary.reduce((n, d) => n + d.items.length, 0);
-  const spent = state.expenses.reduce((s, e) => s + e.amount, 0);
+  const spent = state.expenses.reduce((s, e) => s + e.amount, 0) + tripSpent();
   const totalBudget = (state.budget || 0) * (state.members.length || 1);
   let budgetText = "예산 미설정", budgetCls = "muted";
   if (totalBudget > 0) {
@@ -1051,9 +1055,11 @@ function renderDay(day) {
   if (isToday) card.classList.add("today");
   const total = el("span", { class: "day-total" }, "");
   const w = weatherByDate && weatherByDate[day.date];
+  const spentToday = dayCost(day);
   card.append(el("div", { class: "day-head" },
     el("div", { class: "day-date" }, fmtDate(day.date) || "날짜 미정"),
     ...(isToday ? [el("span", { class: "today-badge" }, "오늘")] : []),
+    ...(spentToday > 0 ? [el("span", { class: "day-spend", title: "이 날의 지출 합계" }, "지출 " + won(spentToday))] : []),
     ...(w ? [el("span", { class: "day-weather" }, `${wmoIcon(w.code)} ${Math.round(w.tmax)}° / ${Math.round(w.tmin)}°${weatherNormal ? " 예년" : ""}`)] : [])
   ));
 
@@ -1387,6 +1393,7 @@ function renderItineraryItem(day, it) {
     ...(it.addr && !isOpen ? [el("span", { class: "acc-sub" }, it.addr.split(",")[0])] : []),
     ...(it.lat == null && !isOpen ? [el("span", { class: "acc-nogeo", title: "위치를 못 찾아 이동시간 계산에서 제외돼요. 항목을 눌러 위치를 지정하세요." }, "위치 없음")] : []),
     ...(it.link && !isOpen ? [el("button", { class: "tiny link-chip", title: it.link, onclick: (e) => { e.stopPropagation(); openLink(it.link); } }, "링크")] : []),
+    ...(itemCost(it) > 0 ? [el("span", { class: "cost-chip", title: "이 장소 지출" }, won(itemCost(it)))] : []),
     el("button", { class: "done-btn" + (it.done ? " on" : ""), title: it.done ? "완료됨 — 해제" : "다녀왔어요 체크",
       onclick: (e) => { e.stopPropagation(); send("updateItem", { dayId: day.id, id: it.id, done: !it.done }); } }, "✓"),
     el("button", { class: "del tiny", onclick: () => send("removeItem", { dayId: day.id, id: it.id }) }, "✕")
@@ -1400,6 +1407,10 @@ function renderItineraryItem(day, it) {
         onchange: (e) => send("updateItem", { dayId: day.id, id: it.id, place: e.target.value }) })),
       field("메모", el("input", { type: "text", value: it.memo, placeholder: "메모",
         onchange: (e) => send("updateItem", { dayId: day.id, id: it.id, memo: e.target.value }) })),
+      field("지출 금액 (원) — 예산에 반영돼요", el("div", { class: "cost-input" },
+        el("input", { type: "number", min: "0", inputmode: "numeric", value: it.cost || "", placeholder: "예: 79000",
+          onchange: (e) => send("updateItem", { dayId: day.id, id: it.id, cost: Number(e.target.value) || 0 }) }),
+        el("span", { class: "cost-won" }, "원"))),
       field("링크 (예약·정보)", el("div", { class: "row" },
         el("input", { type: "url", value: it.link || "", placeholder: "https://",
           onchange: (e) => send("updateItem", { dayId: day.id, id: it.id, link: e.target.value.trim() }) }),
@@ -1468,8 +1479,10 @@ function renderExpenses() {
     } }, "+ 지출 추가")
   ));
 
-  // 예산 대비 지출
-  const spent = state.expenses.reduce((s, e) => s + e.amount, 0);
+  // 예산 대비 지출 (경비정산 + 일정 항목 지출 합산)
+  const expSpent = state.expenses.reduce((s, e) => s + e.amount, 0);
+  const itinSpent = tripSpent();
+  const spent = expSpent + itinSpent;
   const perBudget = state.budget || 0;
   const totalBudget = perBudget * members.length;
   const budgetI = el("input", { type: "number", min: "0", placeholder: "1인당 예산", value: perBudget || "" });
@@ -1487,7 +1500,8 @@ function renderExpenses() {
     budgetCard.append(
       el("div", { class: "budget-bar" }, el("div", { class: "budget-fill" + (over ? " over" : ""), style: `width:${pct}%` }, "")),
       el("div", { class: "budget-nums" },
-        `지출 ${won(spent)} / 총예산 ${won(totalBudget)} · ` + (over ? `${won(spent - totalBudget)} 초과` : `${won(totalBudget - spent)} 남음`))
+        `지출 ${won(spent)} / 총예산 ${won(totalBudget)} · ` + (over ? `${won(spent - totalBudget)} 초과` : `${won(totalBudget - spent)} 남음`)),
+      ...(itinSpent > 0 ? [el("div", { class: "budget-nums", style: "margin-top:2px" }, `(경비 ${won(expSpent)} + 일정 지출 ${won(itinSpent)})`)] : [])
     );
   }
   root.append(budgetCard);

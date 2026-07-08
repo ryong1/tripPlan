@@ -559,3 +559,11 @@ input[type="date"] { width: 100%; min-width: 0; }
   .chip { padding: 6px 11px; font-size: 13px; }
   .modal-actions { margin-top: 18px; }
 }
+
+/* ── 일정 항목 지출 ── */
+.cost-chip { font-size: 12px; font-weight: 700; color: var(--brand-dark); background: var(--brand-soft);
+  border-radius: 999px; padding: 3px 9px; white-space: nowrap; flex: none; }
+.day-spend { margin-left: auto; font-size: 12.5px; font-weight: 700; color: var(--brand-dark); white-space: nowrap; }
+.cost-input { display: flex; align-items: center; gap: 8px; }
+.cost-input input { flex: 1; }
+.cost-won { color: var(--muted); font-size: 14px; }

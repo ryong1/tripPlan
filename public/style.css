@@ -443,3 +443,5 @@ button.sm { padding: 7px 12px; font-size: 14px; }
 .nc-thumb::after { display: none; }
 .nc-thumb-label { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600; color: #93a3bd; }
 .nc-thumb.has .nc-thumb-label { display: none; }
+
+.itin-actions { display: flex; gap: 8px; flex-wrap: wrap; }

@@ -160,6 +160,15 @@ document.querySelectorAll(".tab").forEach((btn) => {
 
 $("#tripTitle").addEventListener("change", (e) => send("renameTrip", { name: e.target.value }));
 
+// 홈(내 여행 목록)으로 돌아가기 — 랜딩의 '이어서 계획하기'를 다시 볼 수 있게
+$("#homeBtn").addEventListener("click", () => {
+  history.replaceState(null, "", location.pathname);
+  $("#app").classList.add("hidden");
+  $("#landing").classList.remove("hidden");
+  $("#landingError").textContent = "";
+  renderRecent();
+});
+
 $("#shareBtn").addEventListener("click", () => {
   $("#shareLink").value = location.origin + "/?trip=" + currentTripId;
   $("#shareModal").classList.remove("hidden");

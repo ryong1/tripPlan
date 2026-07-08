@@ -841,7 +841,7 @@ let recState = null;              // null=닫힘, 아니면 category id
 const nearbyCache = new Map();    // `${lat3},${lon3}|${cat}` -> items[]
 const nearbyInflight = new Set();
 const recCenterCache = new Map(); // destination -> {lat,lon} | null | "pending"
-const NEARBY_CATS = [{ id: "restaurant", label: "식당" }, { id: "cafe", label: "카페" }, { id: "attraction", label: "볼거리" }];
+const NEARBY_CATS = [{ id: "restaurant", label: "식당" }, { id: "cafe", label: "카페" }, { id: "attraction", label: "볼거리" }, { id: "hotel", label: "숙소" }, { id: "shopping", label: "쇼핑" }];
 
 async function searchNearby(lat, lon, category, radius = 1200) {
   try {
@@ -893,7 +893,9 @@ const recImgCache = new Map();   // wikiKey/imageUrl -> url|null
 let focusRec = null;             // '지도에서 보기'로 강조할 추천
 const CAT_KR = { restaurant: "식당", cafe: "카페", bar: "술집", fast_food: "분식", pub: "펍",
   attraction: "볼거리", museum: "박물관", viewpoint: "전망대", theme_park: "테마파크",
-  artwork: "예술작품", zoo: "동물원", aquarium: "아쿠아리움", gallery: "갤러리" };
+  artwork: "예술작품", zoo: "동물원", aquarium: "아쿠아리움", gallery: "갤러리",
+  hotel: "호텔", guest_house: "게스트하우스", hostel: "호스텔", motel: "모텔", apartment: "레지던스",
+  mall: "쇼핑몰", department_store: "백화점", supermarket: "마트", convenience: "편의점", bakery: "베이커리", gift: "기념품", clothes: "의류" };
 const catKr = (c) => CAT_KR[c] || "장소";
 
 function wikiKey(rec) {

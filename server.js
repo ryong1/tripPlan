@@ -324,6 +324,8 @@ app.get("/api/nearby", async (req, res) => {
     restaurant: "[amenity=restaurant]",
     cafe: "[amenity=cafe]",
     attraction: '[tourism~"^(attraction|museum|viewpoint|theme_park|artwork|zoo|aquarium|gallery)$"]',
+    hotel: '[tourism~"^(hotel|guest_house|hostel|motel|apartment)$"]',
+    shopping: '[shop~"^(mall|department_store|supermarket|convenience|bakery|gift|clothes)$"]',
   };
   const f = filters[String(req.query.category)] || filters.restaurant;
   const query = `[out:json][timeout:20];(nwr(around:${radius},${lat},${lon})${f};);out center 40;`;
@@ -355,7 +357,7 @@ app.get("/api/nearby", async (req, res) => {
       seen.add(key);
       const addr = [t["addr:city"], t["addr:street"], t["addr:housenumber"]].filter(Boolean).join(" ");
       results.push({
-        name, lat: elat, lon: elon, category: t.amenity || t.tourism || "", addr,
+        name, lat: elat, lon: elon, category: t.amenity || t.tourism || t.shop || "", addr,
         image: t.image || t["image:0"] || "",
         wiki: t.wikipedia || "",
         cuisine: t.cuisine || "",

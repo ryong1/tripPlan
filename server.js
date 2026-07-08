@@ -306,6 +306,57 @@ app.get("/api/transit", async (req, res) => {
   }
 });
 
+// 주변 명소·맛집 추천 프록시 — OSM Overpass
+app.get("/api/nearby", async (req, res) => {
+  const lat = parseFloat(req.query.lat), lon = parseFloat(req.query.lon);
+  if (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+    return res.status(400).json({ error: "bad_coords" });
+  }
+  const radius = Math.min(3000, Math.max(200, parseInt(req.query.radius) || 1200));
+  const filters = {
+    restaurant: "[amenity=restaurant]",
+    cafe: "[amenity=cafe]",
+    attraction: '[tourism~"^(attraction|museum|viewpoint|theme_park|artwork|zoo|aquarium|gallery)$"]',
+  };
+  const f = filters[String(req.query.category)] || filters.restaurant;
+  const query = `[out:json][timeout:20];(nwr(around:${radius},${lat},${lon})${f};);out center 40;`;
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 9000);
+    const r = await fetch("https://overpass-api.de/api/interpreter", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "TravelPlanner/1.0 (nearby POI search)" },
+      body: "data=" + encodeURIComponent(query),
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    if (r.status === 429 || r.status === 503) return res.status(502).json({ error: "overpass_busy" });
+    if (!r.ok) return res.status(502).json({ error: "nearby_failed" });
+    const data = await r.json();
+    const els = Array.isArray(data.elements) ? data.elements : [];
+    const seen = new Set();
+    const results = [];
+    for (const e of els) {
+      const t = e.tags || {};
+      const elat = e.lat ?? (e.center && e.center.lat);
+      const elon = e.lon ?? (e.center && e.center.lon);
+      if (elat == null || elon == null) continue;
+      const name = t.name || t["name:ko"] || "";
+      if (!name) continue; // 이름 없는 POI는 담을 의미 없어 제외
+      const key = `${name}@${elat.toFixed(4)},${elon.toFixed(4)}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const addr = [t["addr:city"], t["addr:street"], t["addr:housenumber"]].filter(Boolean).join(" ");
+      results.push({ name, lat: elat, lon: elon, category: t.amenity || t.tourism || "", addr });
+      if (results.length >= 30) break;
+    }
+    res.json(results);
+  } catch (e) {
+    if (e.name === "AbortError") return res.status(502).json({ error: "overpass_timeout" });
+    res.status(502).json({ error: "nearby_failed" });
+  }
+});
+
 const server = createServer(app);
 const io = new Server(server);
 

@@ -76,6 +76,9 @@ function enter(tripId, name) {
   socket.emit("join", { tripId, userName: name }, (resp) => {
     if (resp.error) return showLandingError(resp.error);
     saveRecent(resp.trip);
+    // 여행 전환 시 이전 여행의 주변추천/스크롤 상태 초기화
+    nearbyState.clear(); nearbyCache.clear(); nearbyInflight.clear();
+    scrolledToday = false;
     history.replaceState(null, "", "?trip=" + tripId);
     $("#landing").classList.add("hidden");
     $("#app").classList.remove("hidden");
@@ -639,12 +642,50 @@ async function runAutoPlan(ta, status, genBtn, modal) {
   toast(`자동 일정 완료 · ${places.length}곳` + (noGeo.length ? ` (위치 못 찾은 ${noGeo.length}곳은 위치 없이 추가)` : ""));
 }
 
+function renderSummaryHeader() {
+  const today = todayISO();
+  let dday = "날짜 미정";
+  if (state.startDate) {
+    const day = 86400000;
+    const s = new Date(state.startDate), e = new Date(state.endDate || state.startDate);
+    const t = new Date(today);
+    if (t < s) dday = `D-${Math.round((s - t) / day)}`;
+    else if (t <= e) dday = `${Math.round((t - s) / day) + 1}일차`;
+    else dday = "여행 종료";
+  }
+  const totalPlaces = state.itinerary.reduce((n, d) => n + d.items.length, 0);
+  const spent = state.expenses.reduce((s, e) => s + e.amount, 0);
+  const totalBudget = (state.budget || 0) * (state.members.length || 1);
+  let budgetText = "예산 미설정", budgetCls = "muted";
+  if (totalBudget > 0) {
+    const rem = totalBudget - spent;
+    budgetText = rem >= 0 ? `${won(rem)} 남음` : `${won(-rem)} 초과`;
+    budgetCls = rem >= 0 ? "ok" : "danger";
+  }
+  let km = 0;
+  for (const d of state.itinerary) {
+    const geo = d.items.filter((it) => it.lat != null && it.lon != null);
+    for (let i = 0; i < geo.length - 1; i++) km += haversineKm(geo[i], geo[i + 1]);
+  }
+  const distText = km > 0 ? `약 ${Math.round(km)}km` : "—";
+  const item = (label, value, cls) => el("div", { class: "summary-item" },
+    el("div", { class: "summary-label" }, label),
+    el("div", { class: "summary-value" + (cls ? " " + cls : "") }, value));
+  return el("div", { class: "summary-header" },
+    item("여행 상태", dday),
+    item("담은 장소", totalPlaces + "곳"),
+    item("예산", budgetText, budgetCls),
+    item("예상 이동", distText, "muted"));
+}
+
 function renderItinerary() {
   const root = $("#tab-itinerary");
   root.innerHTML = "";
   root.append(el("div", { class: "itin-head" },
     el("h2", { class: "pane-title" }, "일정표"),
     el("button", { class: "primary sm", onclick: openAutoPlan }, "자동으로 일정 짜기")));
+
+  if (state.startDate) root.append(renderSummaryHeader());
 
   if (state.itinerary.length === 0) {
     root.append(el("p", { class: "empty" }, "여행을 만들 때 기간을 넣으면 날짜가 자동으로 채워져요. 아래에서 날짜를 추가할 수도 있어요."));
@@ -725,6 +766,8 @@ function renderDay(day) {
     })
   ));
 
+  card.append(renderNearbySection(day));
+
   if (coordItems.length >= 2) {
     if (mode === "transit") fillTransitLegs(day, coordItems, legHolders, total);
     else fillRouteLegs(coordItems, legHolders, total, mode === "walk" ? "walking" : "driving");
@@ -737,6 +780,80 @@ function openLink(url) {
   if (!url) return;
   const u = /^https?:\/\//i.test(url) ? url : "https://" + url;
   window.open(u, "_blank", "noopener");
+}
+
+/* ── 주변 명소·맛집 추천 (OSM Overpass) ── */
+const nearbyState = new Map();   // dayId -> category (열린 날)
+const nearbyCache = new Map();   // `${lat3},${lon3}|${cat}` -> items[]
+const nearbyInflight = new Set();
+const NEARBY_CATS = [{ id: "restaurant", label: "식당" }, { id: "cafe", label: "카페" }, { id: "attraction", label: "명소" }];
+
+function firstCoordItem(day) {
+  for (const it of day.items) if (it.lat != null && it.lon != null) return it;
+  return null;
+}
+async function searchNearby(lat, lon, category) {
+  try {
+    const res = await fetch(`/api/nearby?lat=${lat}&lon=${lon}&category=${category}`);
+    const data = await res.json();
+    if (res.ok && Array.isArray(data)) return data;
+    if (data.error === "overpass_timeout" || data.error === "overpass_busy") toast("주변 검색 서버가 혼잡해요. 잠시 후 다시 시도해주세요.");
+    return [];
+  } catch { return []; }
+}
+function nearbyDupe(items, day) {
+  const seen = new Set();
+  for (const it of day.items) {
+    if (it.place) seen.add(it.place.toLowerCase().trim());
+    if (it.lat != null) seen.add(`${it.lat.toFixed(4)},${it.lon.toFixed(4)}`);
+  }
+  return items.filter((r) => !seen.has(r.name.toLowerCase().trim()) && !seen.has(`${r.lat.toFixed(4)},${r.lon.toFixed(4)}`));
+}
+function renderNearbySection(day) {
+  const wrap = el("div", { class: "nearby-wrap" });
+  const cat = nearbyState.get(day.id);
+  if (!cat) {
+    wrap.append(el("button", { class: "tiny nearby-toggle", onclick: () => { nearbyState.set(day.id, "restaurant"); render(); } }, "주변 추천 보기"));
+    return wrap;
+  }
+  wrap.append(el("div", { class: "nearby-head" },
+    el("span", { class: "nearby-title" }, "이 근처 추천"),
+    el("button", { class: "tiny", onclick: () => { nearbyState.delete(day.id); render(); } }, "숨기기")));
+  wrap.append(el("div", { class: "nearby-tabs" },
+    ...NEARBY_CATS.map((c) => el("button", { class: "tiny nearby-cat" + (c.id === cat ? " on" : ""),
+      onclick: () => { nearbyState.set(day.id, c.id); render(); } }, c.label))));
+  const list = el("div", { class: "nearby-list" });
+  wrap.append(list);
+  paintNearbyList(day, cat, list);
+  return wrap;
+}
+function paintNearbyList(day, cat, list) {
+  const c = firstCoordItem(day);
+  if (!c) { list.append(el("div", { class: "nearby-empty" }, "이 날짜에 장소를 하나 추가하면 주변을 추천해드려요.")); return; }
+  const key = `${c.lat.toFixed(3)},${c.lon.toFixed(3)}|${cat}`;
+  if (nearbyCache.has(key)) { fillNearbyCards(day, list, nearbyCache.get(key)); return; }
+  list.append(el("div", { class: "nearby-empty" }, "주변 검색 중…"));
+  if (!nearbyInflight.has(key)) {
+    nearbyInflight.add(key);
+    searchNearby(c.lat, c.lon, cat)
+      .then((items) => { nearbyInflight.delete(key); nearbyCache.set(key, items); if (nearbyState.get(day.id) === cat) render(); })
+      .catch(() => { nearbyInflight.delete(key); nearbyCache.set(key, []); if (nearbyState.get(day.id) === cat) render(); });
+  }
+}
+function fillNearbyCards(day, list, items) {
+  const filtered = nearbyDupe(items, day).slice(0, 8);
+  if (!filtered.length) { list.append(el("div", { class: "nearby-empty" }, "추천이 없어요")); return; }
+  for (const rec of filtered) {
+    list.append(el("div", { class: "nearby-card" },
+      el("div", { class: "nc-info" },
+        el("div", { class: "nc-name" }, rec.name),
+        rec.addr ? el("div", { class: "nc-addr" }, rec.addr) : null),
+      el("button", { class: "tiny primary", onclick: (e) => {
+        e.currentTarget.disabled = true; // 빠른 중복 클릭 방지 (재렌더 시 중복 카드 제거됨)
+        send("addItem", { dayId: day.id, place: rec.name, addr: rec.addr || "", lat: rec.lat, lon: rec.lon, time: slotTime(day.items.length) });
+        toast(`${rec.name} 추가됨`);
+      } }, "담기")));
+  }
 }
 
 function sortByTime(day) {

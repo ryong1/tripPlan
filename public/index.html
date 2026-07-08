@@ -100,6 +100,12 @@
   </div>
   <script src="/socket.io/socket.io.js"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="app.js"></script>
+  <!-- 앱 스크립트 (전역 스코프 공유, 순서대로 로드) -->
+  <script src="js/core.js"></script>
+  <script src="js/geo.js"></script>
+  <script src="js/map.js"></script>
+  <script src="js/itinerary.js"></script>
+  <script src="js/recs.js"></script>
+  <script src="js/panels.js"></script>
 </body>
 </html>

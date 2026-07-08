@@ -1,0 +1,169 @@
+// map: Leaflet 지도 렌더링(핀·경로·날짜 필터), 장소 검색 박스
+// 모든 앱 스크립트는 전역 스코프를 공유합니다. index.html의 로드 순서(core→geo→map→itinerary→recs→panels)를 지켜야 합니다.
+
+/* ── 지도로 일정 짜기 ────────────────────────────── */
+let map = null, mapMarkers = null, mapRoutes = null, mapCollapsed = false;
+let mapDayFilter = "all"; // "all" 또는 dayId — 지도에 표시할 날짜
+const MAP_COLORS = ["#2563eb", "#dc2626", "#059669", "#d97706", "#7c3aed", "#db2777", "#0891b2", "#65a30d"];
+
+function toggleMap() {
+  mapCollapsed = !mapCollapsed;
+  const c = $("#mapCanvas");
+  if (c) c.style.display = mapCollapsed ? "none" : "";
+  updateMap();
+  if (!mapCollapsed && map) requestAnimationFrame(() => map.invalidateSize());
+}
+
+function numIcon(color, n) {
+  return L.divIcon({ className: "map-pin", html: `<span class="pin-num" style="background:${color}">${n}</span>`,
+    iconSize: [26, 26], iconAnchor: [13, 13], popupAnchor: [0, -13] });
+}
+
+function showMap() {
+  const pane = $("#tab-map");
+  if (!map) {
+    pane.innerHTML = "";
+    pane.append(
+      el("div", { class: "map-toolbar", id: "mapToolbar" }),
+      el("div", { class: "map-canvas", id: "mapCanvas" })
+    );
+    map = L.map("mapCanvas").setView([37.5665, 126.9780], 11);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+      { maxZoom: 19, attribution: "© OpenStreetMap" }).addTo(map);
+    mapMarkers = L.layerGroup().addTo(map);
+    mapRoutes = L.layerGroup().addTo(map);
+  }
+  updateMap();
+  requestAnimationFrame(() => map.invalidateSize());
+}
+
+function itemPopup(day, di, it, idx) {
+  const box = el("div", { class: "map-pop" });
+  box.append(el("b", {}, `${idx}. ${it.place || "(제목 없음)"}`));
+  box.append(el("div", { class: "map-pop-sub" }, `${fmtDate(day.date)} ${it.time || ""}`));
+  box.append(el("button", { class: "map-day-btn danger",
+    onclick: () => { send("removeItem", { dayId: day.id, id: it.id }); map.closePopup(); } }, "일정에서 빼기"));
+  return box;
+}
+
+function updateMap() {
+  if (!map || !state) return;
+  mapMarkers.clearLayers();
+  mapRoutes.clearLayers();
+  const bounds = [];
+
+  // 선택한 날짜가 사라졌으면 전체로 되돌림
+  if (mapDayFilter !== "all" && !state.itinerary.some((d) => d.id === mapDayFilter)) mapDayFilter = "all";
+  // 일정 항목: 날짜별 색상·순번 핀 + 동선 경로선 (필터가 걸리면 해당 날짜만 그림)
+  const legendDays = [];
+  state.itinerary.forEach((day, di) => {
+    const color = MAP_COLORS[di % MAP_COLORS.length];
+    const pts = day.items.filter((it) => it.lat != null && it.lon != null);
+    if (pts.length) legendDays.push({ color, label: fmtDate(day.date) || `${di + 1}일차`, count: pts.length, id: day.id });
+    if (mapDayFilter !== "all" && mapDayFilter !== day.id) return; // 필터: 이 날짜 건너뜀
+    const line = [];
+    pts.forEach((it, i) => {
+      const ll = [it.lat, it.lon];
+      bounds.push(ll); line.push(ll);
+      L.marker(ll, { icon: numIcon(color, i + 1) }).bindPopup(itemPopup(day, di, it, i + 1)).addTo(mapMarkers);
+    });
+    if (line.length > 1) L.polyline(line, { color, weight: 3, opacity: 0.75 }).addTo(mapRoutes);
+  });
+
+  // 지역 추천 위치 핀 (추천 패널 열려 있을 때)
+  if (recState) {
+    const center = recCenterCache.get(state.destination);
+    if (center && center !== "pending") {
+      const recs = nearbyCache.get(`${center.lat.toFixed(3)},${center.lon.toFixed(3)}|${recState}`);
+      if (Array.isArray(recs)) recs.slice(0, 10).forEach((r) => {
+        const isFocus = focusRec && focusRec.name === r.name && Math.abs(focusRec.lat - r.lat) < 1e-6;
+        L.marker([r.lat, r.lon], { icon: recIcon(isFocus) }).bindPopup(`<b>${r.name}</b><br>${catKr(r.category)}`).addTo(mapMarkers);
+      });
+    }
+  }
+
+  buildMapToolbar(legendDays);
+
+  const doFocus = focusRec;
+  if (doFocus) { map.setView([doFocus.lat, doFocus.lon], 16); focusRec = null; }
+  else if (!mapCollapsed) {
+    if (bounds.length === 1) map.setView(bounds[0], 14);
+    else if (bounds.length > 1) map.fitBounds(bounds, { padding: [45, 45] });
+  }
+}
+function recIcon(focus) {
+  return L.divIcon({ className: "map-pin", html: `<span class="pin-rec${focus ? " focus" : ""}"></span>`,
+    iconSize: [16, 16], iconAnchor: [8, 8], popupAnchor: [0, -8] });
+}
+
+function buildMapToolbar(legendDays) {
+  const bar = $("#mapToolbar");
+  bar.innerHTML = "";
+  bar.append(el("button", { class: "tiny", onclick: toggleMap }, mapCollapsed ? "지도 보기" : "지도 접기"));
+  if (!legendDays.length) {
+    bar.append(el("span", { class: "lg-empty" }, "아래 일정표에서 장소를 검색해 담으면 지도에 표시돼요."));
+    return;
+  }
+  // 날짜 선택 칩 (전체 + 각 날짜). 색 점 = 지도 핀 색상.
+  const sel = el("div", { class: "map-daysel" });
+  const chip = (label, val, color, count) => el("button", {
+    class: "day-chip" + (mapDayFilter === val ? " on" : ""),
+    onclick: () => { mapDayFilter = val; updateMap(); },
+  }, ...(color ? [el("span", { class: "lg-dot", style: `background:${color}` })] : []),
+     count != null ? `${label} ${count}` : label);
+  sel.append(chip("전체", "all", null, null));
+  legendDays.forEach((x) => sel.append(chip(x.label, x.id, x.color, x.count)));
+  bar.append(sel);
+}
+
+function searchBox(placeholder, onPick) {
+  const input = el("input", { type: "text", placeholder });
+  const results = el("div", { class: "search-results hidden" });
+  const wrap = el("div", { class: "search-box" }, input, results);
+  let timer = null, lastQ = null;
+
+  const pick = (r) => { input.value = ""; lastQ = null; results.classList.add("hidden"); onPick(r); input.blur(); };
+  // 입력한 텍스트를 주소로 보고 위치를 찾아 추가 (못 찾으면 이름만이라도 추가)
+  const addByText = async (v) => {
+    const text = (v || input.value).trim();
+    if (!text) return;
+    results.classList.remove("hidden");
+    results.innerHTML = "";
+    results.append(el("div", { class: "search-hint" }, "위치 찾는 중…"));
+    const loc = await geocodeText(text);
+    pick(loc ? { name: text, addr: loc.addr || "", lat: loc.lat, lon: loc.lon }
+             : { name: text, addr: "", lat: null, lon: null });
+    if (!loc) toast("위치를 못 찾아 이름만 추가했어요 (지도엔 안 나와요)");
+  };
+  const doSearch = async () => {
+    const q = input.value.trim();
+    if (q.length < 2) { results.classList.add("hidden"); return; }
+    if (q === lastQ) return;
+    lastQ = q;
+    results.classList.remove("hidden");
+    results.innerHTML = "";
+    results.append(el("div", { class: "search-hint" }, "검색 중…"));
+    const found = await searchPlaces(q);
+    if (input.value.trim() !== q) return;
+    results.innerHTML = "";
+    if (!found.length) {
+      results.append(el("div", { class: "search-hint" }, "검색 결과가 없어요."));
+      results.append(el("div", { class: "search-item add-manual", onclick: () => addByText(q) },
+        el("div", { class: "s-name" }, `‘${q}’ 주소로 추가`),
+        el("div", { class: "s-addr" }, "주소를 입력했다면 위치를 찾아 지도에 표시해요")));
+      return;
+    }
+    for (const r of found) {
+      results.append(el("div", { class: "search-item", onclick: () => pick(r) },
+        el("div", { class: "s-name" }, r.name),
+        el("div", { class: "s-addr" }, r.addr)));
+    }
+  };
+  input.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(doSearch, 500); });
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { const v = input.value.trim(); if (v) addByText(v); }
+  });
+  document.addEventListener("click", (e) => { if (!wrap.contains(e.target)) results.classList.add("hidden"); });
+  return wrap;
+}
+

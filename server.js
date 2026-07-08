@@ -11,6 +11,7 @@ const DATA_DIR = join(__dirname, "data");
 const DATA_FILE = join(DATA_DIR, "trips.json");
 const ODSAY_KEY_FILE = join(DATA_DIR, "odsay.key");
 const KAKAO_KEY_FILE = join(DATA_DIR, "kakao.key");
+const GEMINI_KEY_FILE = join(DATA_DIR, "gemini.key");
 
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
@@ -38,6 +39,17 @@ function getKakaoKeys() {
   }
   return { js, rest };
 }
+
+// Gemini(무료 AI 추천) 키: 환경변수 GEMINI_API_KEY 우선, 없으면 data/gemini.key 파일
+function getGeminiKey() {
+  if (process.env.GEMINI_API_KEY) return process.env.GEMINI_API_KEY.trim();
+  try {
+    return fs.existsSync(GEMINI_KEY_FILE) ? fs.readFileSync(GEMINI_KEY_FILE, "utf-8").trim() : "";
+  } catch {
+    return "";
+  }
+}
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 
 let trips = {};
 try {
@@ -341,6 +353,56 @@ app.get("/api/image", async (req, res) => {
     res.json({ url: img });
   } catch {
     res.json({ url: null });
+  }
+});
+
+// AI 추천 코스 — Gemini(무료 티어) 프록시. 실제 장소명으로 하루 흐름의 일정을 JSON으로 생성.
+app.get("/api/ai/course", async (req, res) => {
+  const key = getGeminiKey();
+  if (!key) return res.json({ error: "no_key" });
+  const dest = String(req.query.dest || "").trim();
+  const days = Math.min(10, Math.max(1, parseInt(req.query.days) || 1));
+  if (!dest) return res.status(400).json({ error: "bad_params" });
+  const prompt = `당신은 한국 여행 전문 플래너입니다. 목적지 "${dest}"에서 ${days}일 여행 일정을 만들어 주세요.
+각 날은 하루 4~6곳을 "오전 관광 → 점심 식당 → 오후 관광/체험 → 카페 → 저녁 식당" 흐름으로 구성하세요.
+규칙:
+- 실제로 존재하는 유명하고 평이 좋은 장소명을 한국어로 정확하게 쓰세요.
+- 한 항목에는 반드시 한 장소만. "&"나 쉼표로 여러 장소를 묶지 마세요.
+- 각 장소에 방문 시간(time, HH:MM 24시간제)과 한 줄 추천 이유(memo, 25자 내외)를 붙이세요.
+- 각 장소의 대략적인 위도(lat)·경도(lon)를 소수점 좌표로 반드시 포함하세요(지도 표시용).
+반드시 다음 JSON 형식으로만 답하세요:
+{"days":[{"items":[{"place":"장소명","time":"10:00","memo":"이유","lat":38.20,"lon":128.59}]}]}`;
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 30000);
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(key)}`;
+    let r;
+    try {
+      r = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { responseMimeType: "application/json", temperature: 0.9 },
+        }),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timer);
+    }
+    if (!r.ok) return res.status(502).json({ error: "gemini_failed", status: r.status });
+    const data = await r.json();
+    const text = data && data.candidates && data.candidates[0] && data.candidates[0].content
+      && data.candidates[0].content.parts && data.candidates[0].content.parts[0]
+      && data.candidates[0].content.parts[0].text;
+    if (!text) return res.status(502).json({ error: "empty" });
+    let parsed;
+    try { parsed = JSON.parse(text); } catch { return res.status(502).json({ error: "parse_failed" }); }
+    if (!parsed || !Array.isArray(parsed.days)) return res.status(502).json({ error: "bad_shape" });
+    res.json(parsed);
+  } catch (e) {
+    if (e.name === "AbortError") return res.status(502).json({ error: "gemini_timeout" });
+    res.status(502).json({ error: "gemini_failed" });
   }
 });
 

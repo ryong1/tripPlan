@@ -876,6 +876,50 @@ async function generateCourse(btn) {
   }
 }
 
+// AI(무료 Gemini) 추천 코스 — 실제 장소명으로 일정 생성 후 좌표를 붙여 배치
+async function aiCourse(btn) {
+  if (!state.destination) { alert("먼저 목적지를 설정해주세요."); return; }
+  const days = state.itinerary;
+  if (!days.length) { alert("먼저 여행 날짜가 필요해요."); return; }
+  if (!confirm(`AI가 ${state.destination} ${days.length}일 추천 코스를 만들어요.\n(기존 일정 항목은 대체됩니다)`)) return;
+  const orig = btn && btn.textContent;
+  if (btn) { btn.disabled = true; btn.textContent = "AI가 짜는 중…"; }
+  try {
+    const res = await fetch(`/api/ai/course?dest=${encodeURIComponent(state.destination)}&days=${days.length}`);
+    const data = await res.json();
+    if (data.error === "no_key") { alert("AI 추천을 쓰려면 Gemini 무료 API 키가 필요해요.\n서버 data/gemini.key 또는 환경변수 GEMINI_API_KEY에 넣어주세요."); return; }
+    if (!data.days || !Array.isArray(data.days)) { alert("AI 응답을 받지 못했어요. 잠시 후 다시 시도해주세요."); return; }
+    if (btn) btn.textContent = "장소 위치 찾는 중…";
+    const assignments = [];
+    let total = 0;
+    for (let i = 0; i < days.length; i++) {
+      const aiDay = data.days[i] || { items: [] };
+      const items = [];
+      for (const it of (aiDay.items || [])) {
+        if (!it || !it.place) continue;
+        const hits = await searchPlaces(it.place, true); // 목적지 주변으로 좌표 조회(정확도 우선)
+        const g = hits[0];
+        // OSM이 못 찾으면 AI가 준 대략 좌표를 사용 (유효한 좌표 범위일 때만)
+        const aiOk = typeof it.lat === "number" && typeof it.lon === "number"
+          && Math.abs(it.lat) <= 90 && Math.abs(it.lon) <= 180 && (it.lat !== 0 || it.lon !== 0);
+        const lat = g ? g.lat : (aiOk ? it.lat : null);
+        const lon = g ? g.lon : (aiOk ? it.lon : null);
+        items.push({ place: it.place, time: it.time || "", memo: it.memo || "",
+          addr: g ? g.addr : "", lat, lon });
+        total++;
+      }
+      assignments.push({ dayId: days[i].id, items });
+    }
+    if (!total) { alert("AI가 장소를 만들지 못했어요. 잠시 후 다시 시도해주세요."); return; }
+    send("autoPlan", { assignments, replace: true });
+    toast(`AI 추천 코스 완성 · ${total}곳`);
+  } catch {
+    alert("AI 추천 중 오류가 났어요. 잠시 후 다시 시도해주세요.");
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = orig; }
+  }
+}
+
 function renderSummaryHeader() {
   const today = todayISO();
   let dday = "날짜 미정";
@@ -918,7 +962,8 @@ function renderItinerary() {
   root.append(el("div", { class: "itin-head" },
     el("h2", { class: "pane-title" }, "일정표"),
     el("div", { class: "itin-actions" },
-      el("button", { class: "primary sm", onclick: (e) => generateCourse(e.currentTarget) }, "추천 코스 자동 만들기"),
+      el("button", { class: "primary sm", onclick: (e) => aiCourse(e.currentTarget) }, "AI 추천 코스"),
+      el("button", { class: "sm", onclick: (e) => generateCourse(e.currentTarget) }, "주변 장소로 채우기"),
       el("button", { class: "sm", onclick: optimizeRoute }, "최적 동선으로 정리"))));
 
   if (state.startDate) root.append(renderSummaryHeader());

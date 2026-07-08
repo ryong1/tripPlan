@@ -70,11 +70,11 @@ if (urlTrip) {
   if (saved) enter(urlTrip, saved);
 }
 
-function enter(tripId, name) {
+function enter(tripId, name, onFail) {
   me = name;
   currentTripId = tripId;
   socket.emit("join", { tripId, userName: name }, (resp) => {
-    if (resp.error) return showLandingError(resp.error);
+    if (resp.error) { showLandingError(resp.error); if (onFail) onFail(resp.error); return; }
     saveRecent(resp.trip);
     // 여행 전환 시 이전 여행의 추천/스크롤 상태 초기화
     recState = null; nearbyCache.clear(); nearbyInflight.clear(); recCenterCache.clear();
@@ -103,9 +103,9 @@ function removeRecent(id) {
 function renderRecent() {
   const wrap = $("#recentWrap"), list = $("#recentList");
   const items = getRecent();
+  list.innerHTML = "";
   if (!items.length) { wrap.classList.add("hidden"); return; }
   wrap.classList.remove("hidden");
-  list.innerHTML = "";
   for (const t of items) {
     const range = t.startDate ? `${fmtDate(t.startDate)}${t.endDate ? " ~ " + fmtDate(t.endDate) : ""}` : "";
     const meta = [t.destination, range].filter(Boolean).join("  ·  ");
@@ -114,7 +114,9 @@ function renderRecent() {
         const nm = $("#nameInput").value.trim() || localStorage.getItem("tp_name");
         if (!nm) return showLandingError("이름을 먼저 입력해주세요.");
         saveName(nm);
-        enter(t.id, nm);
+        enter(t.id, nm, () => {
+          if (confirm(`'${t.name}'을(를) 찾을 수 없어요.\n삭제됐거나 서버가 초기화됐을 수 있어요. 목록에서 지울까요?`)) removeRecent(t.id);
+        });
       } },
         el("span", { class: "recent-name" }, t.name),
         meta ? el("span", { class: "recent-meta" }, meta) : null),

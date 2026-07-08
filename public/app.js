@@ -120,6 +120,7 @@ function enter(tripId, name, onFail) {
     saveRecent(resp.trip);
     // 여행 전환 시 이전 여행의 추천/스크롤 상태 초기화
     recState = null; nearbyCache.clear(); nearbyInflight.clear(); recCenterCache.clear();
+    mapDayFilter = "all";
     scrolledToday = false;
     history.replaceState(null, "", "?trip=" + tripId);
     $("#landing").classList.add("hidden");
@@ -585,6 +586,7 @@ function slotTime(i) {
 
 /* ── 지도로 일정 짜기 ────────────────────────────── */
 let map = null, mapMarkers = null, mapRoutes = null, mapCollapsed = false;
+let mapDayFilter = "all"; // "all" 또는 dayId — 지도에 표시할 날짜
 const MAP_COLORS = ["#2563eb", "#dc2626", "#059669", "#d97706", "#7c3aed", "#db2777", "#0891b2", "#65a30d"];
 
 function toggleMap() {
@@ -633,12 +635,15 @@ function updateMap() {
   mapRoutes.clearLayers();
   const bounds = [];
 
-  // 일정 항목: 날짜별 색상·순번 핀 + 동선 경로선
+  // 선택한 날짜가 사라졌으면 전체로 되돌림
+  if (mapDayFilter !== "all" && !state.itinerary.some((d) => d.id === mapDayFilter)) mapDayFilter = "all";
+  // 일정 항목: 날짜별 색상·순번 핀 + 동선 경로선 (필터가 걸리면 해당 날짜만 그림)
   const legendDays = [];
   state.itinerary.forEach((day, di) => {
     const color = MAP_COLORS[di % MAP_COLORS.length];
     const pts = day.items.filter((it) => it.lat != null && it.lon != null);
-    if (pts.length) legendDays.push({ color, label: fmtDate(day.date) || `${di + 1}일차`, count: pts.length });
+    if (pts.length) legendDays.push({ color, label: fmtDate(day.date) || `${di + 1}일차`, count: pts.length, id: day.id });
+    if (mapDayFilter !== "all" && mapDayFilter !== day.id) return; // 필터: 이 날짜 건너뜀
     const line = [];
     pts.forEach((it, i) => {
       const ll = [it.lat, it.lon];
@@ -678,13 +683,20 @@ function buildMapToolbar(legendDays) {
   const bar = $("#mapToolbar");
   bar.innerHTML = "";
   bar.append(el("button", { class: "tiny", onclick: toggleMap }, mapCollapsed ? "지도 보기" : "지도 접기"));
-  const legend = el("div", { class: "map-legend" });
-  legendDays.forEach((x) => legend.append(el("span", { class: "lg-item" },
-    el("span", { class: "lg-dot", style: `background:${x.color}` }), `${x.label} (${x.count})`)));
   if (!legendDays.length) {
-    legend.append(el("span", { class: "lg-empty" }, "아래 일정표에서 장소를 검색해 담으면 지도에 표시돼요."));
+    bar.append(el("span", { class: "lg-empty" }, "아래 일정표에서 장소를 검색해 담으면 지도에 표시돼요."));
+    return;
   }
-  bar.append(legend);
+  // 날짜 선택 칩 (전체 + 각 날짜). 색 점 = 지도 핀 색상.
+  const sel = el("div", { class: "map-daysel" });
+  const chip = (label, val, color, count) => el("button", {
+    class: "day-chip" + (mapDayFilter === val ? " on" : ""),
+    onclick: () => { mapDayFilter = val; updateMap(); },
+  }, ...(color ? [el("span", { class: "lg-dot", style: `background:${color}` })] : []),
+     count != null ? `${label} ${count}` : label);
+  sel.append(chip("전체", "all", null, null));
+  legendDays.forEach((x) => sel.append(chip(x.label, x.id, x.color, x.count)));
+  bar.append(sel);
 }
 
 function searchBox(placeholder, onPick) {
@@ -876,20 +888,60 @@ async function generateCourse(btn) {
   }
 }
 
-// AI(무료 Gemini) 추천 코스 — 실제 장소명으로 일정 생성 후 좌표를 붙여 배치
-async function aiCourse(btn) {
+// AI 추천 옵션 선택 모달 — 여행 스타일 + 꼭 넣고 싶은 요소
+const AI_STYLES = [
+  { v: "balanced", label: "균형" },
+  { v: "activity", label: "액티비티·체험" },
+  { v: "healing", label: "여유·힐링" },
+  { v: "food", label: "맛집 탐방" },
+];
+const AI_MUSTS = ["바다", "시장", "산·자연", "카페", "역사·문화", "쇼핑", "야경", "온천"];
+function openAiOptions() {
   if (!state.destination) { alert("먼저 목적지를 설정해주세요."); return; }
+  if (!state.itinerary.length) { alert("먼저 여행 날짜가 필요해요."); return; }
+  let style = "balanced";
+  const musts = new Set();
+  const styleRow = el("div", { class: "opt-row" });
+  const styleBtns = AI_STYLES.map((o) => {
+    const c = el("button", { class: "chip" + (o.v === "balanced" ? " on" : ""),
+      onclick: () => { style = o.v; styleBtns.forEach((x) => x.classList.remove("on")); c.classList.add("on"); } }, o.label);
+    styleRow.append(c); return c;
+  });
+  const mustRow = el("div", { class: "opt-row" });
+  AI_MUSTS.forEach((m) => {
+    const c = el("button", { class: "chip",
+      onclick: () => { if (musts.has(m)) { musts.delete(m); c.classList.remove("on"); } else { musts.add(m); c.classList.add("on"); } } }, m);
+    mustRow.append(c);
+  });
+  const modal = el("div", { class: "modal auto-modal" },
+    el("div", { class: "modal-card" },
+      el("h3", {}, "AI 추천 코스 만들기"),
+      el("p", { class: "sub" }, `${state.destination} · ${state.itinerary.length}일`),
+      el("div", { class: "opt-label" }, "여행 스타일"),
+      styleRow,
+      el("div", { class: "opt-label" }, "꼭 넣고 싶은 것 (여러 개 선택 가능)"),
+      mustRow,
+      el("div", { class: "modal-actions" },
+        el("button", { class: "primary", onclick: () => { modal.remove(); runAiCourse({ style, musts: [...musts] }); } }, "코스 만들기"),
+        el("button", { class: "ghost close-modal", onclick: () => modal.remove() }, "취소"))));
+  document.body.append(modal);
+}
+
+// AI(무료 Gemini) 추천 코스 실행 — 실제 장소명으로 일정 생성 후 좌표를 붙여 배치
+async function runAiCourse(prefs) {
   const days = state.itinerary;
-  if (!days.length) { alert("먼저 여행 날짜가 필요해요."); return; }
-  if (!confirm(`AI가 ${state.destination} ${days.length}일 추천 코스를 만들어요.\n(기존 일정 항목은 대체됩니다)`)) return;
-  const orig = btn && btn.textContent;
-  if (btn) { btn.disabled = true; btn.textContent = "AI가 짜는 중…"; }
+  const loading = el("div", { class: "modal auto-modal" },
+    el("div", { class: "modal-card" }, el("p", { class: "ai-loading", id: "aiLoadingText" }, "AI가 코스를 짜고 있어요… (10~20초)")));
+  document.body.append(loading);
+  const setLoad = (t) => { const n = $("#aiLoadingText"); if (n) n.textContent = t; };
   try {
-    const res = await fetch(`/api/ai/course?dest=${encodeURIComponent(state.destination)}&days=${days.length}`);
+    const qs = `dest=${encodeURIComponent(state.destination)}&days=${days.length}`
+      + `&style=${encodeURIComponent(prefs.style || "balanced")}&musts=${encodeURIComponent((prefs.musts || []).join(","))}`;
+    const res = await fetch(`/api/ai/course?${qs}`);
     const data = await res.json();
     if (data.error === "no_key") { alert("AI 추천을 쓰려면 Gemini 무료 API 키가 필요해요.\n서버 data/gemini.key 또는 환경변수 GEMINI_API_KEY에 넣어주세요."); return; }
     if (!data.days || !Array.isArray(data.days)) { alert("AI 응답을 받지 못했어요. 잠시 후 다시 시도해주세요."); return; }
-    if (btn) btn.textContent = "장소 위치 찾는 중…";
+    setLoad("장소 위치를 찾는 중…");
     const assignments = [];
     let total = 0;
     for (let i = 0; i < days.length; i++) {
@@ -916,7 +968,7 @@ async function aiCourse(btn) {
   } catch {
     alert("AI 추천 중 오류가 났어요. 잠시 후 다시 시도해주세요.");
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = orig; }
+    loading.remove();
   }
 }
 
@@ -962,9 +1014,9 @@ function renderItinerary() {
   root.append(el("div", { class: "itin-head" },
     el("h2", { class: "pane-title" }, "일정표"),
     el("div", { class: "itin-actions" },
-      el("button", { class: "primary sm", onclick: (e) => aiCourse(e.currentTarget) }, "AI 추천 코스"),
-      el("button", { class: "sm", onclick: (e) => generateCourse(e.currentTarget) }, "주변 장소로 채우기"),
-      el("button", { class: "sm", onclick: optimizeRoute }, "최적 동선으로 정리"))));
+      el("button", { class: "sm act-ai", onclick: () => openAiOptions() }, "AI 추천 코스"),
+      el("button", { class: "sm act-soft", onclick: (e) => generateCourse(e.currentTarget) }, "주변 장소로 채우기"),
+      el("button", { class: "sm act-line", onclick: optimizeRoute }, "최적 동선으로 정리"))));
 
   if (state.startDate) root.append(renderSummaryHeader());
   if (state.destination) root.append(renderRegionRecs());

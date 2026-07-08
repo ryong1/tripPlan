@@ -461,3 +461,32 @@ input[type="date"] { width: 100%; min-width: 0; }
   .landing-card { padding: 26px 20px; }
   .rec-grid .rec-item { flex-basis: 150px; }
 }
+
+/* ── 일정 액션 버튼 3종 (색 정리) ── */
+.itin-actions button { font-weight: 600; border: 1px solid transparent; }
+.itin-actions .act-ai { background: #3c6ec8; color: #fff; }
+.itin-actions .act-ai:hover { background: #315ba8; }
+.itin-actions .act-soft { background: var(--brand-soft); color: var(--brand-dark); }
+.itin-actions .act-soft:hover { background: rgba(60, 110, 200, 0.2); }
+.itin-actions .act-line { background: #fff; border-color: var(--line); color: var(--muted); }
+.itin-actions .act-line:hover { background: #f3f6fb; color: var(--ink); }
+
+/* ── 지도 날짜 선택 칩 ── */
+.map-daysel { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.day-chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 999px;
+  border: 1px solid var(--line); background: #fff; color: var(--muted); font-size: 13px; font-weight: 600; }
+.day-chip:hover { background: #f3f6fb; }
+.day-chip.on { background: var(--brand); color: #fff; border-color: transparent; }
+.day-chip.on .lg-dot { box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.55); }
+
+/* ── AI 추천 옵션 모달 ── */
+.opt-label { font-size: 13px; color: var(--muted); font-weight: 600; margin: 16px 0 8px; }
+.opt-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { padding: 7px 13px; border-radius: 999px; border: 1px solid var(--line); background: #fff;
+  color: var(--ink); font-size: 14px; font-weight: 500; }
+.chip:hover { background: #f3f6fb; }
+.chip.on { background: var(--brand); color: #fff; border-color: transparent; }
+.modal-actions { display: flex; gap: 8px; margin-top: 22px; }
+.modal-actions button { width: auto; margin-top: 0; }  /* .close-modal의 width:100% 무력화 */
+.modal-actions .primary { flex: 1; }
+.ai-loading { text-align: center; padding: 14px 4px; font-weight: 600; color: var(--ink); }

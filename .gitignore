@@ -3,3 +3,4 @@ data/
 *.log
 .claude/
 shots/
+probe*.mjs

@@ -211,8 +211,7 @@ h2.pane-title { margin: 0 0 6px; font-size: 22px; }
 .day-card { padding: 16px; }
 .day-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
 .day-date { font-weight: 800; font-size: 17px; color: var(--brand-dark); white-space: nowrap; }
-.day-weather { font-size: 13px; color: var(--muted); font-weight: 600; white-space: nowrap; }
-.day-head .del { margin-left: auto; }
+.day-weather { font-size: 13px; color: var(--muted); font-weight: 600; white-space: nowrap; margin-left: auto; }
 .day-head input { flex: 1; }
 .day-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
 .day-total { font-size: 13px; color: var(--muted); font-weight: 600; margin-left: auto; }

@@ -776,8 +776,7 @@ function renderDay(day) {
   card.append(el("div", { class: "day-head" },
     el("div", { class: "day-date" }, fmtDate(day.date) || "날짜 미정"),
     ...(isToday ? [el("span", { class: "today-badge" }, "오늘")] : []),
-    ...(w ? [el("span", { class: "day-weather" }, `${wmoIcon(w.code)} ${Math.round(w.tmax)}° / ${Math.round(w.tmin)}°${weatherNormal ? " 예년" : ""}`)] : []),
-    el("button", { class: "del tiny", onclick: () => confirmDel("이 날짜를 통째로 삭제할까요?") && send("removeDay", { id: day.id }) }, "삭제")
+    ...(w ? [el("span", { class: "day-weather" }, `${wmoIcon(w.code)} ${Math.round(w.tmax)}° / ${Math.round(w.tmin)}°${weatherNormal ? " 예년" : ""}`)] : [])
   ));
 
   const coordItems = day.items.filter((i) => i.lat != null && i.lon != null);

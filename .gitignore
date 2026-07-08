@@ -4,3 +4,4 @@ data/
 .claude/
 shots/
 probe*.mjs
+drive.mjs

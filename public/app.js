@@ -453,7 +453,6 @@ function fillRouteLegs(coordItems, legHolders, total, profile) {
 
 const dayMode = new Map();       // dayId -> "car" | "walk" | "transit"
 const transitCache = new Map();  // "lat,lon>lat,lon" -> ODsay 응답
-const TRANSIT_ICON = { 1: "🚇", 2: "🚌", 3: "🚉", 11: "🚆", 12: "🚌", 13: "✈️" };
 let noKeyNotified = false;
 
 async function transitLeg(a, b) {
@@ -1628,8 +1627,4 @@ function renderPacking() {
     ));
   }
   root.append(card);
-}
-
-function confirmDel(msg) {
-  return window.confirm(msg);
 }

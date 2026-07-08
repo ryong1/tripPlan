@@ -29,6 +29,10 @@ $("#nameInput").value = localStorage.getItem("tp_name") || "";
 let kakaoJsKey = "";
 let kakaoReady = false;       // SDK 로드 완료 여부
 let kakaoLoadPromise = null;
+// 카카오맵(지도+로컬 검색)은 '추가 기능 신청' 승인이 필요해 현재 비활성.
+// 승인받으면 true로 바꾸면 지도·검색이 자동으로 카카오로 전환됨.
+// (장소 '이미지 검색'은 별도 검색 REST API라 이 값과 무관하게 계속 동작)
+const KAKAO_MAPS_ENABLED = false;
 async function loadConfig() {
   try { const c = await (await fetch("/api/config")).json(); kakaoJsKey = c.kakaoJsKey || ""; }
   catch { kakaoJsKey = ""; }
@@ -36,6 +40,7 @@ async function loadConfig() {
 const configReady = loadConfig();
 // 카카오맵 SDK 동적 로드 (키 있을 때만). services 라이브러리로 장소검색까지 처리.
 function ensureKakao() {
+  if (!KAKAO_MAPS_ENABLED) return Promise.resolve(false); // 승인 전: 지도/검색은 OSM 사용
   if (kakaoReady) return Promise.resolve(true);
   if (kakaoLoadPromise) return kakaoLoadPromise;
   kakaoLoadPromise = configReady.then(() => new Promise((resolve) => {
@@ -349,7 +354,7 @@ async function searchPlaces(query, bias = true) {
   const overseas = near ? !inKorea(near) : false;
   if (!overseas && await ensureKakao()) results = await kakaoKeyword(q, near);
   if (!results.length) results = await osmSearch(q, near); // 카카오 결과 없으면 OSM 폴백
-  geoCache.set(cacheKey, results);
+  if (results.length) geoCache.set(cacheKey, results); // 빈 결과는 캐시 안 함(일시 실패 재시도 가능)
   return results;
 }
 
@@ -382,19 +387,31 @@ function tripCenterSync() {
   const c = recCenterCache.get(state.destination);
   return (c && c !== "pending") ? c : null;
 }
+const centerAttempts = {}; // destination -> 지오코딩 시도 횟수
+let centerInflight = false; // 동시/재귀 조회 방지 (렌더 루프 차단)
 async function getTripCenter() {
   if (!state || !state.destination) return null;
-  // 이미 시도한 목적지는 결과(좌표 또는 null)를 그대로 반환 — null이어도 재조회하지 않음(무한 렌더 루프 방지)
-  if (recCenterCache.has(state.destination)) {
-    const c = recCenterCache.get(state.destination);
-    return c === "pending" ? null : c;
+  const dest = state.destination;
+  const cached = recCenterCache.get(dest);
+  if (cached && cached !== "pending") return cached; // 성공 좌표만 캐시됨
+  if (centerInflight) return null;                    // 이미 조회 중이면 대기
+  centerInflight = true;
+  try {
+    const hits = await searchPlaces(dest, false); // 목적지 자체는 편향 없이 조회
+    if (hits[0]) {
+      const center = { lat: hits[0].lat, lon: hits[0].lon };
+      recCenterCache.set(dest, center); // 성공만 캐시
+      centerAttempts[dest] = 0;
+      render();
+      return center;
+    }
+    // 실패는 캐시하지 않음(=다음에 재시도). 일시적 실패면 잠시 뒤 최대 3회 재시도
+    const n = (centerAttempts[dest] = (centerAttempts[dest] || 0) + 1);
+    if (n < 4) setTimeout(render, 1500);
+    return null;
+  } finally {
+    centerInflight = false;
   }
-  recCenterCache.set(state.destination, "pending");
-  const hits = await searchPlaces(state.destination, false); // 목적지 자체는 편향 없이 조회
-  const center = hits[0] ? { lat: hits[0].lat, lon: hits[0].lon } : null;
-  recCenterCache.set(state.destination, center);
-  render();
-  return center;
 }
 
 // 좌표가 없는 장소는 이름으로 위치를 자동 조회해서 좌표를 채운다 (이동시간 계산용)
@@ -1107,9 +1124,10 @@ function cachedRecImage(rec) {
   if (recImgCache.has(geoImgKey(rec))) return recImgCache.get(geoImgKey(rec));
   return undefined;
 }
-// 국내 장소는 카카오 이미지 검색을 먼저 시도하고, 없으면 위키백과로 폴백
+const hasHangul = (s) => /[가-힣]/.test(s || "");
+// 한국 장소(이름에 한글 포함 또는 국내 목적지)는 카카오 이미지 검색 우선, 없으면 위키백과 폴백
 function resolveRecImage(rec, onDone) {
-  if (isDomestic()) {
+  if (hasHangul(rec.name) || isDomestic()) {
     const kk = kakaoImgKey(rec);
     if (recImgCache.has(kk)) { const v = recImgCache.get(kk); if (v) { onDone(v); return; } }
     else {

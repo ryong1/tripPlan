@@ -287,12 +287,20 @@ app.get("/api/geo/search", async (req, res) => {
   try {
     const url = "https://nominatim.openstreetmap.org/search?format=jsonv2&limit=6"
       + "&accept-language=ko" + bias + "&q=" + encodeURIComponent(q);
-    const r = await fetch(url, {
-      headers: {
-        "User-Agent": "TravelPlanner/1.0 (personal trip planner)",
-        "Accept": "application/json",
-      },
-    });
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000); // 응답 지연 시 중단 (요청 매달림 방지)
+    let r;
+    try {
+      r = await fetch(url, {
+        headers: {
+          "User-Agent": "TravelPlanner/1.0 (personal trip planner)",
+          "Accept": "application/json",
+        },
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timer);
+    }
     const data = await r.json();
     res.json(
       (Array.isArray(data) ? data : []).map((x) => ({

@@ -24,6 +24,43 @@ const saveName = (name) => localStorage.setItem("tp_name", name);
 
 $("#nameInput").value = localStorage.getItem("tp_name") || "";
 
+/* ── 카카오(국내) / OSM(해외) 하이브리드 ────────────────────
+   여행지 좌표가 한국 범위이고 카카오 키가 있으면 카카오맵을, 아니면 기존 OSM을 쓴다. */
+let kakaoJsKey = "";
+let kakaoReady = false;       // SDK 로드 완료 여부
+let kakaoLoadPromise = null;
+async function loadConfig() {
+  try { const c = await (await fetch("/api/config")).json(); kakaoJsKey = c.kakaoJsKey || ""; }
+  catch { kakaoJsKey = ""; }
+}
+const configReady = loadConfig();
+// 카카오맵 SDK 동적 로드 (키 있을 때만). services 라이브러리로 장소검색까지 처리.
+function ensureKakao() {
+  if (kakaoReady) return Promise.resolve(true);
+  if (kakaoLoadPromise) return kakaoLoadPromise;
+  kakaoLoadPromise = configReady.then(() => new Promise((resolve) => {
+    if (!kakaoJsKey) return resolve(false);
+    let done = false;
+    const finish = (v) => { if (!done) { done = true; resolve(v); } };
+    const s = document.createElement("script");
+    s.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${kakaoJsKey}&libraries=services&autoload=false`;
+    s.onload = () => {
+      // 인증 실패 시 200이지만 window.kakao가 없을 수 있음 → 안전 폴백
+      if (window.kakao && window.kakao.maps) {
+        try { window.kakao.maps.load(() => { kakaoReady = true; finish(true); }); }
+        catch { finish(false); }
+      } else finish(false);
+    };
+    s.onerror = () => finish(false);
+    setTimeout(() => finish(false), 6000); // 6초 내 미로드 시 폴백 (절대 멈추지 않도록)
+    document.head.appendChild(s);
+  }));
+  return kakaoLoadPromise;
+}
+// 대한민국 대략 범위 (제주~강원 포함)
+function inKorea(c) { return !!c && c.lat >= 33 && c.lat <= 38.9 && c.lon >= 124.5 && c.lon <= 131.5; }
+function isDomestic() { return inKorea(tripCenterSync()); }
+
 function parseTripCode(raw) {
   const s = (raw || "").trim();
   const m = s.match(/[?&]trip=([^&]+)/) || s.match(/#([A-Za-z0-9]+)$/);
@@ -262,6 +299,44 @@ function render() {
 
 const geoCache = new Map();
 
+// 카카오 category_group_code → 내부 카테고리
+const KAKAO_CAT = { FD6: "restaurant", CE7: "cafe", AT4: "attraction", AD5: "hotel", MT1: "mall", CT1: "attraction", CS2: "convenience" };
+const kakaoCat = (code) => KAKAO_CAT[code] || "";
+function kakaoDoc(d) {
+  return {
+    name: d.place_name,
+    addr: d.road_address_name || d.address_name || "",
+    lat: parseFloat(d.y), lon: parseFloat(d.x),
+    category: kakaoCat(d.category_group_code),
+    phone: d.phone || "", website: d.place_url || "",
+  };
+}
+// 카카오 키워드 검색 (services 라이브러리, 클라이언트)
+function kakaoKeyword(q, near) {
+  return new Promise((resolve) => {
+    try {
+      const ps = new window.kakao.maps.services.Places();
+      const opts = {};
+      if (near) {
+        opts.location = new window.kakao.maps.LatLng(near.lat, near.lon);
+        opts.radius = 20000; // 최대 20km
+        opts.sort = window.kakao.maps.services.SortBy.DISTANCE;
+      }
+      ps.keywordSearch(q, (data, status) => {
+        resolve(status === window.kakao.maps.services.Status.OK && Array.isArray(data) ? data.map(kakaoDoc) : []);
+      }, opts);
+    } catch { resolve([]); }
+  });
+}
+async function osmSearch(q, near) {
+  try {
+    let u = "/api/geo/search?q=" + encodeURIComponent(q);
+    if (near) u += `&lat=${near.lat}&lon=${near.lon}`;
+    const data = await (await fetch(u)).json();
+    return Array.isArray(data) ? data : [];
+  } catch { return []; }
+}
+
 async function searchPlaces(query, bias = true) {
   const q = query.trim();
   if (q.length < 2) return [];
@@ -269,17 +344,36 @@ async function searchPlaces(query, bias = true) {
   const near = bias ? tripCenterSync() : null;
   const cacheKey = near ? `${q}@${near.lat.toFixed(2)},${near.lon.toFixed(2)}` : q;
   if (geoCache.has(cacheKey)) return geoCache.get(cacheKey);
-  try {
-    let u = "/api/geo/search?q=" + encodeURIComponent(q);
-    if (near) u += `&lat=${near.lat}&lon=${near.lon}`;
-    const res = await fetch(u);
-    const data = await res.json();
-    const results = Array.isArray(data) ? data : [];
-    geoCache.set(cacheKey, results);
-    return results;
-  } catch {
-    return [];
-  }
+  let results = [];
+  // 국내(또는 아직 지역 미확정)면 카카오 우선, 해외 확정이면 건너뜀
+  const overseas = near ? !inKorea(near) : false;
+  if (!overseas && await ensureKakao()) results = await kakaoKeyword(q, near);
+  if (!results.length) results = await osmSearch(q, near); // 카카오 결과 없으면 OSM 폴백
+  geoCache.set(cacheKey, results);
+  return results;
+}
+
+// 카카오 주소 검색 (도로명/지번 → 좌표)
+function kakaoAddress(addr) {
+  return new Promise((resolve) => {
+    try {
+      const g = new window.kakao.maps.services.Geocoder();
+      g.addressSearch(addr, (data, status) => {
+        if (status === window.kakao.maps.services.Status.OK && data[0]) {
+          resolve({ lat: parseFloat(data[0].y), lon: parseFloat(data[0].x), addr: data[0].address_name || addr });
+        } else resolve(null);
+      });
+    } catch { resolve(null); }
+  });
+}
+// 입력한 텍스트(주소/장소명)의 좌표를 찾는다. 못 찾으면 null.
+async function geocodeText(text) {
+  const t = text.trim();
+  if (!t) return null;
+  if (await ensureKakao()) { const r = await kakaoAddress(t); if (r) return r; } // 국내 주소 우선
+  const hits = await searchPlaces(t, true);
+  if (hits.length) return { lat: hits[0].lat, lon: hits[0].lon, addr: hits[0].addr || "" };
+  return null;
 }
 
 // 목적지(지역) 중심 좌표 — 검색 편향 기준
@@ -290,9 +384,11 @@ function tripCenterSync() {
 }
 async function getTripCenter() {
   if (!state || !state.destination) return null;
-  const c = recCenterCache.get(state.destination);
-  if (c && c !== "pending") return c;
-  if (c === "pending") return null;
+  // 이미 시도한 목적지는 결과(좌표 또는 null)를 그대로 반환 — null이어도 재조회하지 않음(무한 렌더 루프 방지)
+  if (recCenterCache.has(state.destination)) {
+    const c = recCenterCache.get(state.destination);
+    return c === "pending" ? null : c;
+  }
   recCenterCache.set(state.destination, "pending");
   const hits = await searchPlaces(state.destination, false); // 목적지 자체는 편향 없이 조회
   const center = hits[0] ? { lat: hits[0].lat, lon: hits[0].lon } : null;
@@ -581,6 +677,18 @@ function searchBox(placeholder, onPick) {
   let timer = null, lastQ = null;
 
   const pick = (r) => { input.value = ""; lastQ = null; results.classList.add("hidden"); onPick(r); input.blur(); };
+  // 입력한 텍스트를 주소로 보고 위치를 찾아 추가 (못 찾으면 이름만이라도 추가)
+  const addByText = async (v) => {
+    const text = (v || input.value).trim();
+    if (!text) return;
+    results.classList.remove("hidden");
+    results.innerHTML = "";
+    results.append(el("div", { class: "search-hint" }, "위치 찾는 중…"));
+    const loc = await geocodeText(text);
+    pick(loc ? { name: text, addr: loc.addr || "", lat: loc.lat, lon: loc.lon }
+             : { name: text, addr: "", lat: null, lon: null });
+    if (!loc) toast("위치를 못 찾아 이름만 추가했어요 (지도엔 안 나와요)");
+  };
   const doSearch = async () => {
     const q = input.value.trim();
     if (q.length < 2) { results.classList.add("hidden"); return; }
@@ -592,7 +700,13 @@ function searchBox(placeholder, onPick) {
     const found = await searchPlaces(q);
     if (input.value.trim() !== q) return;
     results.innerHTML = "";
-    if (!found.length) { results.append(el("div", { class: "search-hint" }, "결과 없음 — Enter로 직접 추가할 수 있어요")); return; }
+    if (!found.length) {
+      results.append(el("div", { class: "search-hint" }, "검색 결과가 없어요."));
+      results.append(el("div", { class: "search-item add-manual", onclick: () => addByText(q) },
+        el("div", { class: "s-name" }, `‘${q}’ 주소로 추가`),
+        el("div", { class: "s-addr" }, "주소를 입력했다면 위치를 찾아 지도에 표시해요")));
+      return;
+    }
     for (const r of found) {
       results.append(el("div", { class: "search-item", onclick: () => pick(r) },
         el("div", { class: "s-name" }, r.name),
@@ -601,10 +715,7 @@ function searchBox(placeholder, onPick) {
   };
   input.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(doSearch, 500); });
   input.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") {
-      const v = input.value.trim();
-      if (v) pick({ name: v, addr: "", lat: null, lon: null });
-    }
+    if (e.key === "Enter") { const v = input.value.trim(); if (v) addByText(v); }
   });
   document.addEventListener("click", (e) => { if (!wrap.contains(e.target)) results.classList.add("hidden"); });
   return wrap;
@@ -677,39 +788,72 @@ function optimizeRoute() {
   toast("최적 동선으로 정리했어요");
 }
 
-// 목적지 지역의 볼거리·맛집으로 일정을 자동 생성 (무료 OSM 기반)
+// 하루 일정 리듬: 볼거리 → 점심(식당) → 볼거리 → 카페 → 볼거리 → 저녁(식당)
+const DAY_TEMPLATE = [
+  { cat: "attraction", time: "10:00", memo: "오전 관광" },
+  { cat: "restaurant", time: "12:30", memo: "점심" },
+  { cat: "attraction", time: "14:30", memo: "오후 관광" },
+  { cat: "cafe",       time: "16:00", memo: "카페 휴식" },
+  { cat: "attraction", time: "17:30", memo: "관광" },
+  { cat: "restaurant", time: "19:00", memo: "저녁" },
+];
+// 아직 안 쓴 장소 중 현재 위치에서 가장 가까운 곳
+function pickNearestUnused(pool, used, from) {
+  let best = null, bd = Infinity;
+  for (const p of pool || []) {
+    if (!p || p.lat == null || used.has(p.name)) continue;
+    const d = from ? haversineKm(from, p) : 0;
+    if (d < bd) { bd = d; best = p; }
+  }
+  return best;
+}
+
+// 목적지 지역을 "볼거리·식당·카페" 흐름으로 하루 일정 자동 생성
 async function generateCourse(btn) {
   if (!state.destination) { alert("먼저 목적지를 설정해주세요."); return; }
   const days = state.itinerary;
   if (!days.length) { alert("먼저 여행 날짜가 필요해요."); return; }
   const center = await getTripCenter();
   if (!center) { alert("목적지 위치를 찾지 못했어요. 목적지 이름을 확인해주세요."); return; }
-  if (!confirm(`${state.destination} 지역의 볼거리·맛집으로 일정을 자동으로 채울까요?\n(기존 일정 항목은 대체됩니다)`)) return;
+  if (!confirm(`${state.destination} 지역을 "볼거리 → 점심 → 카페 → 저녁" 흐름으로 하루 일정을 자동으로 채울까요?\n(기존 일정 항목은 대체됩니다)`)) return;
   const orig = btn && btn.textContent;
   if (btn) { btn.disabled = true; btn.textContent = "만드는 중…"; }
   try {
-    const n = days.length;
-    const [attr, rest, cafe] = await Promise.all([
-      searchNearby(center.lat, center.lon, "attraction", 3000),
-      searchNearby(center.lat, center.lon, "restaurant", 3000),
-      searchNearby(center.lat, center.lon, "cafe", 3000),
+    const [attraction, restaurant, cafe] = await Promise.all([
+      searchNearby(center.lat, center.lon, "attraction", 4000),
+      searchNearby(center.lat, center.lon, "restaurant", 4000),
+      searchNearby(center.lat, center.lon, "cafe", 4000),
     ]);
-    const pool = [...attr.slice(0, n * 2), ...rest.slice(0, n)];
-    if (pool.length < n) pool.push(...cafe.slice(0, n));
-    const seen = new Set(), geo = [];
-    for (const p of pool) {
-      if (p.lat == null || seen.has(p.name)) continue;
-      seen.add(p.name); geo.push(p);
+    const pools = {
+      attraction: attraction.filter((p) => p.lat != null),
+      restaurant: restaurant.filter((p) => p.lat != null),
+      cafe: cafe.filter((p) => p.lat != null),
+    };
+    if (!pools.attraction.length && !pools.restaurant.length && !pools.cafe.length) {
+      alert("이 지역에서 추천할 장소를 찾지 못했어요. 잠시 후 다시 시도해주세요."); return;
     }
-    if (!geo.length) { alert("이 지역에서 추천할 장소를 찾지 못했어요. 잠시 후 다시 시도해주세요."); return; }
-    const ordered = nearestNeighborPath(geo);
-    const chunks = splitBalanced(ordered, n);
-    const assignments = days.map((d, di) => ({
-      dayId: d.id,
-      items: chunks[di].map((p, i) => ({ place: p.name, addr: p.addr || "", lat: p.lat, lon: p.lon, time: slotTime(i) })),
-    }));
+    const used = new Set();
+    let cursor = center, picked = 0;
+    const assignments = days.map((d) => {
+      const items = [];
+      for (const slot of DAY_TEMPLATE) {
+        let p = pickNearestUnused(pools[slot.cat], used, cursor);
+        let memo = slot.memo;
+        if (!p) { // 해당 종류가 동나면 다른 종류로 채우되 메모는 비움
+          p = pickNearestUnused(pools.attraction, used, cursor)
+            || pickNearestUnused(pools.restaurant, used, cursor)
+            || pickNearestUnused(pools.cafe, used, cursor);
+          memo = "";
+        }
+        if (!p) continue;
+        used.add(p.name); cursor = p; picked++;
+        items.push({ place: p.name, addr: p.addr || "", lat: p.lat, lon: p.lon, time: slot.time, memo });
+      }
+      return { dayId: d.id, items };
+    });
+    if (!picked) { alert("추천할 장소를 찾지 못했어요. 잠시 후 다시 시도해주세요."); return; }
     send("autoPlan", { assignments, replace: true });
-    toast(`추천 코스 완성 · ${ordered.length}곳`);
+    toast(`추천 코스 완성 · ${picked}곳`);
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = orig; }
   }
@@ -862,7 +1006,35 @@ const nearbyInflight = new Set();
 const recCenterCache = new Map(); // destination -> {lat,lon} | null | "pending"
 const NEARBY_CATS = [{ id: "restaurant", label: "식당" }, { id: "cafe", label: "카페" }, { id: "attraction", label: "볼거리" }, { id: "hotel", label: "숙소" }, { id: "shopping", label: "쇼핑" }];
 
+// 내부 카테고리 → 카카오 category_group_code (쇼핑은 코드가 없어 키워드로)
+const KAKAO_CAT_CODE = { restaurant: "FD6", cafe: "CE7", attraction: "AT4", hotel: "AD5" };
+function kakaoNearby(lat, lon, category, radius) {
+  return new Promise((resolve) => {
+    try {
+      const ps = new window.kakao.maps.services.Places();
+      const opts = {
+        location: new window.kakao.maps.LatLng(lat, lon),
+        radius: Math.min(radius, 20000),
+        sort: window.kakao.maps.services.SortBy.DISTANCE,
+      };
+      const cb = (data, status) => resolve(
+        status === window.kakao.maps.services.Status.OK && Array.isArray(data)
+          ? data.map((d) => { const o = kakaoDoc(d); if (!o.category) o.category = category; return o; })
+          : []
+      );
+      const code = KAKAO_CAT_CODE[category];
+      if (code) ps.categorySearch(code, cb, opts);
+      else ps.keywordSearch("쇼핑", cb, opts);
+    } catch { resolve([]); }
+  });
+}
+
 async function searchNearby(lat, lon, category, radius = 1200) {
+  // 국내면 카카오 카테고리 검색 우선, 결과 없거나 해외면 OSM(Overpass)
+  if (inKorea({ lat, lon }) && await ensureKakao()) {
+    const r = await kakaoNearby(lat, lon, category, radius);
+    if (r.length) return r;
+  }
   try {
     const res = await fetch(`/api/nearby?lat=${lat}&lon=${lon}&category=${category}&radius=${radius}`);
     const data = await res.json();
@@ -925,14 +1097,33 @@ function wikiKey(rec) {
   return { lang, title, key: `${lang}:${title}` };
 }
 const geoImgKey = (rec) => `geo:${rec.lat.toFixed(4)},${rec.lon.toFixed(4)}`;
+const kakaoImgKey = (rec) => `kakao:${rec.name}`;
 function cachedRecImage(rec) {
   if (rec.image && /^https?:\/\//i.test(rec.image)) return rec.image;
+  const kk = kakaoImgKey(rec);
+  if (recImgCache.has(kk) && recImgCache.get(kk)) return recImgCache.get(kk); // 카카오 성공분만 즉시 사용
   const wk = wikiKey(rec);
   if (wk && recImgCache.has(wk.key)) return recImgCache.get(wk.key);
   if (recImgCache.has(geoImgKey(rec))) return recImgCache.get(geoImgKey(rec));
   return undefined;
 }
+// 국내 장소는 카카오 이미지 검색을 먼저 시도하고, 없으면 위키백과로 폴백
 function resolveRecImage(rec, onDone) {
+  if (isDomestic()) {
+    const kk = kakaoImgKey(rec);
+    if (recImgCache.has(kk)) { const v = recImgCache.get(kk); if (v) { onDone(v); return; } }
+    else {
+      const q = ((state && state.destination ? state.destination + " " : "") + rec.name).trim();
+      fetch("/api/image?q=" + encodeURIComponent(q)).then((r) => r.json()).then((d) => {
+        const u = (d && d.url) || null; recImgCache.set(kk, u);
+        if (u) onDone(u); else resolveWikiImage(rec, onDone);
+      }).catch(() => { recImgCache.set(kk, null); resolveWikiImage(rec, onDone); });
+      return;
+    }
+  }
+  resolveWikiImage(rec, onDone);
+}
+function resolveWikiImage(rec, onDone) {
   const wk = wikiKey(rec);
   if (wk) {
     if (recImgCache.has(wk.key)) { onDone(recImgCache.get(wk.key)); return; }

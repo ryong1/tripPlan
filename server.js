@@ -10,6 +10,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = join(__dirname, "data");
 const DATA_FILE = join(DATA_DIR, "trips.json");
 const ODSAY_KEY_FILE = join(DATA_DIR, "odsay.key");
+const KAKAO_KEY_FILE = join(DATA_DIR, "kakao.key");
 
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
@@ -21,6 +22,21 @@ function getOdsayKey() {
   } catch {
     return "";
   }
+}
+
+// 카카오 키(국내 지도·장소검색·이미지): 환경변수(KAKAO_JS_KEY / KAKAO_REST_KEY) 우선,
+// 없으면 data/kakao.key(JSON {"js":"...","rest":"..."})에서 읽음. 재시작 불필요.
+function getKakaoKeys() {
+  let js = (process.env.KAKAO_JS_KEY || "").trim();
+  let rest = (process.env.KAKAO_REST_KEY || "").trim();
+  if ((!js || !rest) && fs.existsSync(KAKAO_KEY_FILE)) {
+    try {
+      const obj = JSON.parse(fs.readFileSync(KAKAO_KEY_FILE, "utf-8").trim());
+      js = js || (obj.js || "").trim();
+      rest = rest || (obj.rest || "").trim();
+    } catch { /* JSON이 아니면 무시 */ }
+  }
+  return { js, rest };
 }
 
 let trips = {};
@@ -288,6 +304,35 @@ app.get("/api/geo/search", async (req, res) => {
     );
   } catch (e) {
     res.status(502).json({ error: "search_failed" });
+  }
+});
+
+// 클라이언트 설정 — 카카오 지도 JS 키만 노출(도메인 잠금됨). REST 키는 서버에만 둔다.
+app.get("/api/config", (req, res) => {
+  const { js } = getKakaoKeys();
+  res.json({ kakaoJsKey: js || "" });
+});
+
+// 장소 사진 — 카카오 이미지 검색 프록시 (REST 키 사용, 국내 장소 커버리지 좋음)
+const imgCache = new Map(); // query -> url|null
+app.get("/api/image", async (req, res) => {
+  const q = String(req.query.q || "").trim();
+  if (!q) return res.json({ url: null });
+  if (imgCache.has(q)) return res.json({ url: imgCache.get(q) });
+  const { rest } = getKakaoKeys();
+  if (!rest) return res.json({ url: null, error: "no_key" });
+  try {
+    const url = "https://dapi.kakao.com/v2/search/image?size=1&sort=accuracy&query=" + encodeURIComponent(q);
+    const r = await fetch(url, { headers: { Authorization: "KakaoAK " + rest } });
+    if (!r.ok) return res.json({ url: null });
+    const data = await r.json();
+    const doc = data.documents && data.documents[0];
+    const img = doc ? (doc.thumbnail_url || doc.image_url || null) : null;
+    if (imgCache.size > 2000) imgCache.clear(); // 단순 상한
+    imgCache.set(q, img);
+    res.json({ url: img });
+  } catch {
+    res.json({ url: null });
   }
 });
 

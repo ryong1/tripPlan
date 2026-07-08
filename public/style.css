@@ -399,10 +399,11 @@ button.sm { padding: 7px 12px; font-size: 14px; }
   .summary-value { font-size: 17px; }
 }
 
-/* 주변 추천 */
-.nearby-wrap { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
-.nearby-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
-.nearby-title { font-weight: 700; font-size: 15px; }
+/* 지역 추천 장소 */
+.rec-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.rec-head h3 { margin: 0; font-size: 16px; }
+.rec-item { }
+.rec-days { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 4px 2px; }
 .nearby-tabs { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
 .nearby-cat.on { background: var(--brand); color: #fff; border-color: var(--brand); }
 .nearby-list { display: flex; flex-direction: column; gap: 8px; }

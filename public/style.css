@@ -351,7 +351,7 @@ button.sm { padding: 7px 12px; font-size: 14px; }
 .day-empty { color: var(--muted); font-size: 14px; padding: 10px 2px; }
 
 /* 자동 일정 짜기 */
-.itin-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.itin-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 18px; }
 .itin-head .pane-title { margin: 0; }
 .auto-modal .modal-card { padding: 28px; }
 .auto-modal h3 { margin-bottom: 6px; }
@@ -446,3 +446,18 @@ button.sm { padding: 7px 12px; font-size: 14px; }
 .nc-thumb.has .nc-thumb-label { display: none; }
 
 .itin-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.itin-actions button { border-radius: 12px; padding: 9px 15px; font-size: 14px; }
+
+/* ── 모바일 다듬기 ── */
+.field { min-width: 0; }
+input[type="date"] { width: 100%; min-width: 0; }
+@media (max-width: 560px) {
+  .drag-handle { display: none; }                 /* 터치에선 드래그 불가 → 제목 공간 확보 */
+  .acc-time-input { width: 104px; }
+  .topbar { padding: 10px 12px; gap: 8px; }
+  .topbar-right { gap: 8px; }
+  .trip-title-input { font-size: 18px; }
+  .presence { max-width: 92px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .landing-card { padding: 26px 20px; }
+  .rec-grid .rec-item { flex-basis: 150px; }
+}

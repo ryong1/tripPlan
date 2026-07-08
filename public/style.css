@@ -490,3 +490,72 @@ input[type="date"] { width: 100%; min-width: 0; }
 .modal-actions button { width: auto; margin-top: 0; }  /* .close-modal의 width:100% 무력화 */
 .modal-actions .primary { flex: 1; }
 .ai-loading { text-align: center; padding: 14px 4px; font-weight: 600; color: var(--ink); }
+
+/* ── 모바일 전체 크기 축소 (텍스트·요소) ── */
+@media (max-width: 560px) {
+  /* 버튼·입력 여백 축소 (입력 글자는 16px 유지 → iOS 확대 방지) */
+  button { padding: 8px 12px; border-radius: 10px; }
+  button.tiny { padding: 4px 9px; font-size: 12px; }
+  input, select, textarea { padding: 8px 11px; border-radius: 10px; }
+
+  /* 랜딩 */
+  .landing { padding: 12px; }
+  .landing-card { padding: 20px 16px; border-radius: 18px; }
+  .landing-card h1 { font-size: 21px; }
+  .sub { font-size: 12.5px; margin: 3px 0 12px; }
+  .field { margin-bottom: 10px; }
+  .field > label { font-size: 12px; }
+  .or { font-size: 12px; margin: 6px 0; }
+
+  /* 상단바·탭 */
+  .topbar { padding: 8px 11px; gap: 8px; }
+  .trip-title-input { font-size: 16px; }
+  .trip-sub { font-size: 11px; }
+  .topbar-right { gap: 6px; }
+  .presence { font-size: 12px; max-width: 74px; }
+  .tabs { top: 48px; }
+  .tab { padding: 9px 10px; font-size: 13.5px; }
+
+  /* 본문·카드·제목 */
+  .content { padding: 11px; }
+  .card { padding: 12px 13px; border-radius: 13px; margin-bottom: 10px; }
+  .card-head h3 { font-size: 15px; }
+  h2.pane-title { font-size: 17px; }
+
+  /* 요약 헤더 */
+  .summary-header { grid-template-columns: repeat(2, 1fr); gap: 10px; padding: 13px 14px; border-radius: 14px; margin-bottom: 12px; }
+  .summary-value { font-size: 15px; }
+  .summary-label { font-size: 11px; }
+
+  /* 일정 항목 */
+  .acc-head { gap: 8px; padding: 9px 3px; }
+  .acc-time { font-size: 13px; min-width: 42px; }
+  .acc-time-input { width: 96px; font-size: 13px; }
+  .acc-title { font-size: 14px; }
+  .day-card { padding: 13px; }
+  .day-date { font-size: 15px; }
+  .day-weather { font-size: 11.5px; }
+  .day-total { font-size: 12px; }
+
+  /* 지도 */
+  .map-canvas { height: 280px; }
+  .day-chip { padding: 4px 9px; font-size: 12px; }
+  .map-daysel { gap: 5px; }
+
+  /* 추천 카드 */
+  .rec-item { flex-basis: 140px; }
+  .nc-name { font-size: 13px; }
+  .nc-cat { font-size: 11px; }
+
+  /* 액션 버튼 */
+  .itin-actions { gap: 6px; }
+  .itin-actions button { padding: 8px 11px; font-size: 13px; }
+
+  /* 모달 */
+  .modal { padding: 12px; }
+  .modal-card, .auto-modal .modal-card { padding: 18px 16px; border-radius: 16px; }
+  .modal-card h3 { font-size: 17px; }
+  .opt-label { font-size: 12px; margin: 13px 0 7px; }
+  .chip { padding: 6px 11px; font-size: 13px; }
+  .modal-actions { margin-top: 18px; }
+}

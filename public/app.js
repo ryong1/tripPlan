@@ -242,6 +242,7 @@ function render() {
   $("#tripTitle").value = state.name;
   const range = state.startDate ? `${fmtDate(state.startDate)} ~ ${fmtDate(state.endDate)}` : "";
   $("#tripSub").textContent = [state.destination && "📍 " + state.destination, range].filter(Boolean).join("  ·  ");
+  if (state.destination) getTripCenter(); // 검색 편향용 목적지 중심 미리 확보
   renderItinerary();
   renderExpenses();
   renderPacking();
@@ -250,19 +251,43 @@ function render() {
 
 const geoCache = new Map();
 
-async function searchPlaces(query) {
+async function searchPlaces(query, bias = true) {
   const q = query.trim();
   if (q.length < 2) return [];
-  if (geoCache.has(q)) return geoCache.get(q);
+  // bias=true면 목적지 주변으로 검색 범위를 제한 (지역 밖 엉뚱한 결과 방지)
+  const near = bias ? tripCenterSync() : null;
+  const cacheKey = near ? `${q}@${near.lat.toFixed(2)},${near.lon.toFixed(2)}` : q;
+  if (geoCache.has(cacheKey)) return geoCache.get(cacheKey);
   try {
-    const res = await fetch("/api/geo/search?q=" + encodeURIComponent(q));
+    let u = "/api/geo/search?q=" + encodeURIComponent(q);
+    if (near) u += `&lat=${near.lat}&lon=${near.lon}`;
+    const res = await fetch(u);
     const data = await res.json();
     const results = Array.isArray(data) ? data : [];
-    geoCache.set(q, results);
+    geoCache.set(cacheKey, results);
     return results;
   } catch {
     return [];
   }
+}
+
+// 목적지(지역) 중심 좌표 — 검색 편향 기준
+function tripCenterSync() {
+  if (!state || !state.destination) return null;
+  const c = recCenterCache.get(state.destination);
+  return (c && c !== "pending") ? c : null;
+}
+async function getTripCenter() {
+  if (!state || !state.destination) return null;
+  const c = recCenterCache.get(state.destination);
+  if (c && c !== "pending") return c;
+  if (c === "pending") return null;
+  recCenterCache.set(state.destination, "pending");
+  const hits = await searchPlaces(state.destination, false); // 목적지 자체는 편향 없이 조회
+  const center = hits[0] ? { lat: hits[0].lat, lon: hits[0].lon } : null;
+  recCenterCache.set(state.destination, center);
+  render();
+  return center;
 }
 
 // 좌표가 없는 장소는 이름으로 위치를 자동 조회해서 좌표를 채운다 (이동시간 계산용)
@@ -845,20 +870,14 @@ function renderRegionRecs() {
 }
 
 function paintRegionRecs(cat, list) {
-  const dest = state.destination;
-  if (!dest) { list.append(el("div", { class: "nearby-empty" }, "목적지를 설정하면 추천을 보여드려요.")); return; }
-  const center = recCenterCache.get(dest);
-  if (center === undefined) {
-    recCenterCache.set(dest, "pending");
+  if (!state.destination) { list.append(el("div", { class: "nearby-empty" }, "목적지를 설정하면 추천을 보여드려요.")); return; }
+  const center = tripCenterSync();
+  if (!center) {
+    if (recCenterCache.get(state.destination) === null) { list.append(el("div", { class: "nearby-empty" }, "목적지 위치를 찾지 못했어요.")); return; }
     list.append(el("div", { class: "nearby-empty" }, "지역 위치 찾는 중…"));
-    searchPlaces(dest).then((hits) => {
-      recCenterCache.set(dest, hits[0] ? { lat: hits[0].lat, lon: hits[0].lon } : null);
-      if (recState) render();
-    });
+    getTripCenter();
     return;
   }
-  if (center === "pending") { list.append(el("div", { class: "nearby-empty" }, "지역 위치 찾는 중…")); return; }
-  if (!center) { list.append(el("div", { class: "nearby-empty" }, "목적지 위치를 찾지 못했어요.")); return; }
   const key = `${center.lat.toFixed(3)},${center.lon.toFixed(3)}|${cat}`;
   if (nearbyCache.has(key)) { fillRegionCards(list, nearbyCache.get(key)); return; }
   list.append(el("div", { class: "nearby-empty" }, "추천 검색 중…"));

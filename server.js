@@ -239,9 +239,16 @@ app.post("/api/trips", (req, res) => {
 app.get("/api/geo/search", async (req, res) => {
   const q = String(req.query.q || "").trim();
   if (q.length < 2) return res.json([]);
+  // 목적지 좌표(lat/lon)가 오면 그 주변으로 검색 범위를 제한 (엉뚱한 지역 방지)
+  const lat = parseFloat(req.query.lat), lon = parseFloat(req.query.lon);
+  let bias = "";
+  if (!isNaN(lat) && !isNaN(lon)) {
+    const d = 0.4; // 약 ±40km 박스
+    bias = `&viewbox=${lon - d},${lat + d},${lon + d},${lat - d}&bounded=1`;
+  }
   try {
     const url = "https://nominatim.openstreetmap.org/search?format=jsonv2&limit=6"
-      + "&accept-language=ko&q=" + encodeURIComponent(q);
+      + "&accept-language=ko" + bias + "&q=" + encodeURIComponent(q);
     const r = await fetch(url, {
       headers: {
         "User-Agent": "TravelPlanner/1.0 (personal trip planner)",

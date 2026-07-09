@@ -6,7 +6,7 @@
   --ink: #1f2a44;
   --muted: #6a7890;
   --line: rgba(70, 100, 160, 0.18);
-  --glass-edge: rgba(70, 100, 160, 0.18);
+  --glass-edge: rgba(70, 100, 160, 0.26);
   --brand: #1d4ed8;
   --brand-dark: #1e40af;
   --brand-soft: rgba(29, 78, 216, 0.13);
@@ -762,3 +762,12 @@ input:focus, select:focus, textarea:focus { box-shadow: 0 0 0 3px var(--brand-so
   .card:hover, .summary-item:hover, button:hover, button.primary:hover { transform: none; }
 }
 
+
+/* ══ 요약 4개 = 하나의 카드 / 일정표 버튼 가시성 ══ */
+.summary-header { background: var(--card); border: 1px solid var(--glass-edge); border-radius: var(--r); padding: 16px 18px; box-shadow: var(--shadow); gap: 12px; }
+.summary-item { background: transparent; border: none; padding: 0; box-shadow: none; }
+.summary-item:hover { transform: none; box-shadow: none; }
+.itin-actions .act-ai, .itin-actions .act-soft, .itin-actions .act-line {
+  background: var(--surface); color: var(--brand-dark); border: 1.5px solid var(--brand); }
+.itin-actions .act-ai:hover, .itin-actions .act-soft:hover, .itin-actions .act-line:hover {
+  background: var(--brand-soft); color: var(--brand-dark); }

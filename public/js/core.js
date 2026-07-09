@@ -58,6 +58,7 @@ function applyTheme(id) {
   document.documentElement.setAttribute("data-theme", id);
   try { localStorage.setItem("tp_theme", id); } catch {}
   renderThemeOptions();
+  if (typeof updateMap === "function") updateMap(); // 지도 날짜 색을 새 테마로 갱신
 }
 applyTheme(currentTheme());
 $("#themeBtn").addEventListener("click", () => { renderThemeOptions(); $("#themeModal").classList.remove("hidden"); });

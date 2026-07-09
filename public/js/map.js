@@ -4,7 +4,32 @@
 /* ── 지도로 일정 짜기 ────────────────────────────── */
 let map = null, mapMarkers = null, mapRoutes = null, mapCollapsed = false;
 let mapDayFilter = "all"; // "all" 또는 dayId — 지도에 표시할 날짜
-const MAP_COLORS = ["#2563eb", "#dc2626", "#059669", "#d97706", "#7c3aed", "#db2777", "#0891b2", "#65a30d"];
+const MAP_HUE_OFFSETS = [0, 150, 62, 255, 100, 300, 200, 30]; // 테마 기준색에서 날짜별 색상 회전
+function hexToHsl(hex) {
+  const m = String(hex).trim().replace("#", "");
+  const h6 = m.length === 3 ? m.split("").map((c) => c + c).join("") : m;
+  const r = parseInt(h6.slice(0, 2), 16) / 255, g = parseInt(h6.slice(2, 4), 16) / 255, b = parseInt(h6.slice(4, 6), 16) / 255;
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+  let h = 0;
+  if (d) {
+    if (mx === r) h = ((g - b) / d) % 6;
+    else if (mx === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    h *= 60; if (h < 0) h += 360;
+  }
+  const l = (mx + mn) / 2;
+  const s = d ? d / (1 - Math.abs(2 * l - 1)) : 0;
+  return { h, s: s * 100, l: l * 100 };
+}
+// 현재 테마의 --brand에서 날짜별 지도 색을 생성 (테마마다 조금씩 달라짐)
+function mapColors() {
+  let brand = "#1d4ed8";
+  try { brand = getComputedStyle(document.documentElement).getPropertyValue("--brand").trim() || brand; } catch {}
+  const base = hexToHsl(brand);
+  const S = Math.max(58, Math.min(74, base.s || 65));
+  const L = Math.max(44, Math.min(56, base.l || 50));
+  return MAP_HUE_OFFSETS.map((off) => `hsl(${Math.round((base.h + off) % 360)}, ${S}%, ${L}%)`);
+}
 
 function toggleMap() {
   mapCollapsed = !mapCollapsed;
@@ -56,8 +81,9 @@ function updateMap() {
   if (mapDayFilter !== "all" && !state.itinerary.some((d) => d.id === mapDayFilter)) mapDayFilter = "all";
   // 일정 항목: 날짜별 색상·순번 핀 + 동선 경로선 (필터가 걸리면 해당 날짜만 그림)
   const legendDays = [];
+  const COLORS = mapColors();
   state.itinerary.forEach((day, di) => {
-    const color = MAP_COLORS[di % MAP_COLORS.length];
+    const color = COLORS[di % COLORS.length];
     const pts = day.items.filter((it) => it.lat != null && it.lon != null);
     if (pts.length) legendDays.push({ color, label: fmtDate(day.date) || `${di + 1}일차`, count: pts.length, id: day.id });
     if (mapDayFilter !== "all" && mapDayFilter !== day.id) return; // 필터: 이 날짜 건너뜀

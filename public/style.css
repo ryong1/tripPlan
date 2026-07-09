@@ -857,3 +857,24 @@ h2.pane-title { font-size: 27px; }
 .diary-narr { background: var(--brand-soft); border-radius: var(--r); padding: 12px 15px; margin: 4px 0 13px; font-size: 15px; line-height: 1.85; color: var(--ink); }
 .diary-photo .nc-thumb { border-radius: var(--r); box-shadow: var(--shadow); }
 .diary-meta { padding-top: 4px; border-top: 1px dashed var(--line); }
+
+/* ══ Kirang은 '여행 일기'에서만, 나머지는 Noto 복귀 ══ */
+.landing-card h1, h2.pane-title { font-family: "Noto Sans KR", -apple-system, sans-serif; }
+h2.pane-title { font-size: 22px; font-weight: 800; letter-spacing: -.02em; }
+.landing-card h1 { font-size: 28px; font-weight: 800; letter-spacing: -.02em; }
+.diary-title, .diary-kicker, .diary-intro, .diary-daynum, .diary-date, .diary-narr, .diary-cap, .diary-meta {
+  font-family: "Kirang Haerang", "Noto Sans KR", sans-serif; }
+
+/* ══ 여행 일기: 왼쪽 선 제거 + 줄노트 느낌 + 부드럽게 ══ */
+.diary-entry { border-left: none; border-radius: 16px; padding: 18px 20px; }
+.diary-entry::before { display: none; }
+.diary-daynum { background: var(--brand-soft); color: var(--brand-dark); font-size: 19px; padding: 0 14px; }
+.diary-date { font-size: 16px; color: var(--muted); font-weight: 400; }
+.diary-narr {
+  background: none; border-radius: 0; padding: 2px 2px 0; margin: 6px 0 14px;
+  font-size: 17px; line-height: 32px; letter-spacing: .2px; color: var(--ink);
+  background-image: repeating-linear-gradient(transparent 0 31px, var(--line) 31px 32px);
+}
+.diary-intro { font-size: 16.5px; line-height: 1.75; }
+.diary-title { font-size: 30px; }
+.diary-meta { border-top: 1px dashed var(--line); padding-top: 8px; font-size: 14px; }

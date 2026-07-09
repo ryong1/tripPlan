@@ -39,7 +39,7 @@ function renderItineraryItem(day, it) {
     if (dragItem && dragItem.dayId === day.id) { reorderWithin(day, dragItem.id, it.id); dragItem = null; }
   });
 
-  const handle = el("span", { class: "drag-handle", draggable: "true", title: "드래그해서 순서 변경",
+  const handle = el("span", { class: "drag-handle", draggable: "true", title: "드래그해서 순서 변경", "aria-label": "드래그해서 순서 변경",
     onclick: (e) => e.stopPropagation() }, "⠿");
   handle.addEventListener("dragstart", (e) => {
     dragItem = { dayId: day.id, id: it.id };
@@ -61,15 +61,18 @@ function renderItineraryItem(day, it) {
       onclick: (e) => e.stopPropagation(),
       onchange: (e) => send("updateItem", { dayId: day.id, id: it.id, time: e.target.value }) }),
     el("span", { class: "tl-dot" + (it.lat != null ? " geo" : "") }, ""),
-    el("span", { class: "acc-icon", title: "장소 종류" }, placeIcon(it.place)),
+    el("span", { class: "acc-icon", "aria-label": "장소 종류", role: "img" }, placeIcon(it.place)),
     el("span", { class: "acc-title" }, it.place || "(제목 없음)"),
-    ...(it.addr && !isOpen ? [el("span", { class: "acc-sub" }, it.addr.split(",")[0])] : []),
     ...(it.lat == null && !isOpen ? [el("span", { class: "acc-nogeo", title: "위치를 못 찾아 이동시간 계산에서 제외돼요. 항목을 눌러 위치를 지정하세요." }, "위치 없음")] : []),
-    ...(it.link && !isOpen ? [el("button", { class: "tiny link-chip", title: it.link, onclick: (e) => { e.stopPropagation(); openLink(it.link); } }, "링크")] : []),
+    ...(it.link && !isOpen ? [el("button", { class: "tiny link-chip", title: it.link, "aria-label": "링크 열기", onclick: (e) => { e.stopPropagation(); openLink(it.link); } }, "링크")] : []),
     ...(itemCost(it) > 0 ? [el("span", { class: "cost-chip", title: "이 장소 지출" }, won(itemCost(it)))] : []),
-    el("button", { class: "done-btn" + (it.done ? " on" : ""), title: it.done ? "완료됨 — 해제" : "다녀왔어요 체크",
+    el("button", { class: "done-btn" + (it.done ? " on" : ""), "aria-label": it.done ? "다녀옴 해제" : "다녀왔어요 체크", title: it.done ? "완료됨 — 해제" : "다녀왔어요 체크",
       onclick: (e) => { e.stopPropagation(); send("updateItem", { dayId: day.id, id: it.id, done: !it.done }); } }, "✓"),
-    el("button", { class: "del tiny", onclick: () => send("removeItem", { dayId: day.id, id: it.id }) }, "✕")
+    el("button", { class: "del tiny", "aria-label": "일정에서 삭제", onclick: () => {
+      const snap = { place: it.place, memo: it.memo, addr: it.addr, lat: it.lat, lon: it.lon, link: it.link, cost: it.cost, time: it.time };
+      send("removeItem", { dayId: day.id, id: it.id });
+      undoToast(`'${it.place || "항목"}' 삭제됨`, () => send("addItem", { dayId: day.id, ...snap }));
+    } }, "✕")
   );
   wrap.append(summary);
 
@@ -105,6 +108,11 @@ function renderItineraryItem(day, it) {
           onchange: (e) => send("updateItem", { dayId: day.id, id: it.id, link: e.target.value.trim() }) }),
         ...(it.link ? [el("button", { class: "tiny", onclick: () => openLink(it.link) }, "열기")] : [])))
     );
+    if (day.items.length > 1) {
+      body.append(field("순서 바꾸기", el("div", { class: "row" },
+        el("button", { class: "tiny", "aria-label": "위로 이동", onclick: () => moveItem(day, it, -1) }, "▲ 위로"),
+        el("button", { class: "tiny", "aria-label": "아래로 이동", onclick: () => moveItem(day, it, 1) }, "▼ 아래로"))));
+    }
     if (it.lat == null) {
       body.append(el("div", { class: "acc-field" },
         el("label", {}, "위치 지정"),
@@ -117,6 +125,15 @@ function renderItineraryItem(day, it) {
 
 function field(label, input) {
   return el("div", { class: "acc-field" }, el("label", {}, label), input);
+}
+
+// 항목 순서 이동 (드래그 대신 터치에서도 되는 위/아래)
+function moveItem(day, it, dir) {
+  const ids = day.items.map((x) => x.id);
+  const i = ids.indexOf(it.id), j = i + dir;
+  if (i < 0 || j < 0 || j >= ids.length) return;
+  [ids[i], ids[j]] = [ids[j], ids[i]];
+  send("reorderDay", { dayId: day.id, orderedIds: ids });
 }
 
 // 장소 이름 키워드로 종류 아이콘을 대략 추정

@@ -878,3 +878,14 @@ h2.pane-title { font-size: 22px; font-weight: 800; letter-spacing: -.02em; }
 .diary-intro { font-size: 16.5px; line-height: 1.75; }
 .diary-title { font-size: 30px; }
 .diary-meta { border-top: 1px dashed var(--line); padding-top: 8px; font-size: 14px; }
+
+/* ══ 되돌리기 토스트 · 모바일 탭타깃 · 버튼 일관성 ══ */
+.toast-undo { margin-left: 12px; background: transparent; border: none; color: #fff; font-weight: 700; text-decoration: underline; padding: 0; font-size: 13px; }
+.toast-undo:hover { background: transparent; opacity: .8; }
+button.tiny { min-height: 30px; }
+@media (max-width: 560px) {
+  button.tiny { min-height: 36px; padding: 7px 12px; }
+  .done-btn { width: 30px; height: 30px; }
+  .acc-head .del { min-width: 34px; min-height: 34px; }
+  .acc-time-input { min-height: 34px; }
+}

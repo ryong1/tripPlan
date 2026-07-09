@@ -226,6 +226,16 @@ function toast(msg) {
   wrap.append(t);
   setTimeout(() => t.remove(), 2200);
 }
+// 되돌리기 버튼이 있는 토스트 (삭제 취소 등)
+function undoToast(msg, onUndo) {
+  let wrap = $("#toastWrap");
+  if (!wrap) { wrap = el("div", { class: "toast-wrap", id: "toastWrap" }); document.body.append(wrap); }
+  let done = false;
+  const t = el("div", { class: "toast" }, msg,
+    el("button", { class: "toast-undo", onclick: () => { if (done) return; done = true; t.remove(); onUndo(); } }, "실행취소"));
+  wrap.append(t);
+  setTimeout(() => t.remove(), 5000);
+}
 
 async function optimizeOrder(points) {
   const coords = points.map((p) => `${p.lon},${p.lat}`).join(";");

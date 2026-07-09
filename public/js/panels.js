@@ -79,25 +79,25 @@ function renderItineraryItem(day, it) {
         onchange: (e) => send("updateItem", { dayId: day.id, id: it.id, place: e.target.value }) })),
       field("메모", el("input", { type: "text", value: it.memo, placeholder: "메모",
         onchange: (e) => send("updateItem", { dayId: day.id, id: it.id, memo: e.target.value }) })),
-      field("지출 금액 (원) — 예산에 반영돼요", el("div", { class: "cost-input" },
+      field("지출 금액 (원)", el("div", { class: "cost-input" },
         el("input", { type: "number", min: "0", inputmode: "numeric", value: it.cost || "", placeholder: "예: 79000",
           onchange: (e) => send("updateItem", { dayId: day.id, id: it.id, cost: Math.max(0, Number(e.target.value) || 0) }) }),
         el("span", { class: "cost-won" }, "원"))),
-      field("링크 (예약·정보)", el("div", { class: "row" },
+      field("링크", el("div", { class: "row" },
         el("input", { type: "url", value: it.link || "", placeholder: "https://",
           onchange: (e) => send("updateItem", { dayId: day.id, id: it.id, link: e.target.value.trim() }) }),
         ...(it.link ? [el("button", { class: "tiny", onclick: () => openLink(it.link) }, "열기")] : [])))
     );
     if (it.lat != null) {
       body.append(el("div", { class: "acc-field" },
-        el("label", {}, "위치 (동선 계산에 사용됨)"),
+        el("label", {}, "위치"),
         el("div", { class: "loc-line" },
           el("span", {}, (it.addr ? it.addr.split(",").slice(0, 3).join(", ") : `${it.lat.toFixed(4)}, ${it.lon.toFixed(4)}`)),
           el("button", { class: "tiny", onclick: () => send("updateItem", { dayId: day.id, id: it.id, lat: null, lon: null, addr: "" }) }, "위치 지우기"))
       ));
     } else {
       body.append(el("div", { class: "acc-field" },
-        el("label", {}, "위치 지정 (검색하면 동선 계산에 포함돼요)"),
+        el("label", {}, "위치 지정"),
         searchBox("장소/주소 검색", async (r) => { const g = await ensureCoords(r); send("updateItem", { dayId: day.id, id: it.id, place: it.place || g.name, addr: g.addr || "", lat: g.lat ?? null, lon: g.lon ?? null }); })));
     }
     wrap.append(body);

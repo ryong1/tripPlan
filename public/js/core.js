@@ -27,6 +27,35 @@ const saveName = (name) => localStorage.setItem("tp_name", name);
 
 $("#nameInput").value = localStorage.getItem("tp_name") || "";
 
+// ── 테마 (색상 세트, 이 기기에 저장) ──
+const THEMES = [
+  { id: "ocean", name: "오션", dot: "#1f2e52" },
+  { id: "forest", name: "포레스트", dot: "#1f5138" },
+  { id: "rose", name: "로즈", dot: "#8f3b55" },
+  { id: "lavender", name: "라벤더", dot: "#463b7a" },
+  { id: "teal", name: "틸", dot: "#14636b" },
+];
+function currentTheme() { try { return localStorage.getItem("tp_theme") || "ocean"; } catch { return "ocean"; } }
+function renderThemeOptions() {
+  const cur = currentTheme();
+  for (const boxId of ["#themeOpts", "#landingThemeOpts"]) {
+    const box = $(boxId);
+    if (!box) continue;
+    box.innerHTML = "";
+    THEMES.forEach((t) => box.append(el("button", { class: "theme-opt" + (t.id === cur ? " on" : ""), onclick: () => applyTheme(t.id) },
+      el("span", { class: "theme-swatch", style: `background:${t.dot}` }),
+      el("span", { class: "theme-opt-name" }, t.name))));
+  }
+}
+function applyTheme(id) {
+  document.documentElement.setAttribute("data-theme", id);
+  try { localStorage.setItem("tp_theme", id); } catch {}
+  renderThemeOptions();
+}
+applyTheme(currentTheme());
+$("#themeBtn").addEventListener("click", () => { renderThemeOptions(); $("#themeModal").classList.remove("hidden"); });
+$("#closeTheme").addEventListener("click", () => $("#themeModal").classList.add("hidden"));
+
 /* ── 카카오(국내) / OSM(해외) 하이브리드 ────────────────────
    여행지 좌표가 한국 범위이고 카카오 키가 있으면 카카오맵을, 아니면 기존 OSM을 쓴다. */
 let kakaoJsKey = "";

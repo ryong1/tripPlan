@@ -604,3 +604,28 @@ input[type="date"] { width: 100%; min-width: 0; }
 .person-swatch { width: 26px; height: 26px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px var(--line); padding: 0; flex: none; }
 .person-swatch:hover { transform: scale(1.08); }
 .person-name { font-weight: 600; }
+
+/* ── 테마 (사용자 선택, 흰 표면 유지하고 브랜드색+배경만 교체) ── */
+html[data-theme="forest"]  { --brand: #1f5138; --brand-dark: #143726; --brand-soft: rgba(31, 120, 80, 0.13); }
+html[data-theme="forest"]  body    { background: linear-gradient(165deg, #eef7f0 0%, #dcefe2 55%, #cfe8d8 100%) fixed; }
+html[data-theme="forest"]  .landing{ background: linear-gradient(165deg, #c7e6d2 0%, #9cd0b0 100%); }
+html[data-theme="rose"]    { --brand: #8f3b55; --brand-dark: #6e2c41; --brand-soft: rgba(190, 80, 120, 0.13); }
+html[data-theme="rose"]    body    { background: linear-gradient(165deg, #fdeef3 0%, #f9dde7 55%, #f6cfdd 100%) fixed; }
+html[data-theme="rose"]    .landing{ background: linear-gradient(165deg, #f2c7d6 0%, #e79cbb 100%); }
+html[data-theme="lavender"]{ --brand: #463b7a; --brand-dark: #322a5c; --brand-soft: rgba(120, 90, 200, 0.13); }
+html[data-theme="lavender"]body    { background: linear-gradient(165deg, #f0eefe 0%, #e5e0fb 55%, #ddd8f5 100%) fixed; }
+html[data-theme="lavender"].landing{ background: linear-gradient(165deg, #d3cbf0 0%, #b0a6e6 100%); }
+html[data-theme="teal"]    { --brand: #14636b; --brand-dark: #0e4a50; --brand-soft: rgba(14, 150, 170, 0.13); }
+html[data-theme="teal"]    body    { background: linear-gradient(165deg, #eafafb 0%, #d6f0f3 55%, #cfeaef 100%) fixed; }
+html[data-theme="teal"]    .landing{ background: linear-gradient(165deg, #c7e9ee 0%, #9cd4dc 100%); }
+
+/* 테마 선택 UI */
+.theme-opts { display: flex; flex-wrap: wrap; gap: 14px; }
+.theme-opt { display: flex; flex-direction: column; align-items: center; gap: 6px; border: none; background: transparent; padding: 2px; cursor: pointer; }
+.theme-opt:hover { background: transparent; }
+.theme-swatch { width: 44px; height: 44px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px var(--line); }
+.theme-opt.on .theme-swatch { box-shadow: 0 0 0 2px var(--brand); }
+.theme-opt-name { font-size: 12px; color: var(--muted); font-weight: 600; }
+.theme-opt.on .theme-opt-name { color: var(--brand-dark); }
+.landing-theme { border-top: 1px solid var(--line); padding-top: 16px; margin-top: 16px; }
+.landing-theme-label { font-size: 13px; color: var(--muted); font-weight: 600; margin-bottom: 12px; }

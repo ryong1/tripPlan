@@ -58,6 +58,10 @@
         </div>
       </div>
       <p id="landingError" class="error"></p>
+      <div class="landing-theme">
+        <div class="landing-theme-label">테마</div>
+        <div id="landingThemeOpts" class="theme-opts"></div>
+      </div>
     </div>
   </div>
   <div id="app" class="app hidden">
@@ -68,6 +72,7 @@
       </div>
       <div class="topbar-right">
         <span id="presence" class="presence">● 1명 접속</span>
+        <button id="themeBtn" class="ghost">테마</button>
         <button id="homeBtn" class="ghost">내 여행</button>
         <button id="shareBtn" class="ghost">공유</button>
       </div>
@@ -100,6 +105,14 @@
       <div class="member-colors-label">멤버 색상 (색을 눌러 변경)</div>
       <div id="memberColors"></div>
       <button id="closeShare" class="ghost close-modal">닫기</button>
+    </div>
+  </div>
+  <div id="themeModal" class="modal hidden">
+    <div class="modal-card">
+      <h3>테마 선택</h3>
+      <p class="sub">앱 색상을 바꿔요. 이 기기에 저장됩니다.</p>
+      <div id="themeOpts" class="theme-opts"></div>
+      <button id="closeTheme" class="ghost close-modal">닫기</button>
     </div>
   </div>
   <script src="/socket.io/socket.io.js"></script>

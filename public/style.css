@@ -16,11 +16,11 @@
   --ok: #2f9e6f;
   --shadow: none;
   /* 디자인 토큰: radius는 전부 하나로 통일(원형/리셋 제외) */
-  --r: 14px;
-  --r-control: 14px;
-  --r-card: 14px;
-  --r-pill: 14px;
-  --radius: 14px;
+  --r: 10px;
+  --r-control: 10px;
+  --r-card: 10px;
+  --r-pill: 10px;
+  --radius: 10px;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }

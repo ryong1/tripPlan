@@ -177,8 +177,11 @@ function renderExpenses() {
   const renderChips = () => {
     shareChips.innerHTML = "";
     for (const m of members) {
-      shareChips.append(el("span", { class: "chip" + (shareSet.has(m) ? " on" : ""),
-        onclick: () => { shareSet.has(m) ? shareSet.delete(m) : shareSet.add(m); renderChips(); } }, m));
+      const on = shareSet.has(m);
+      shareChips.append(el("span", { class: "chip person-chip" + (on ? " on" : ""),
+        style: on ? `background:${memberColor(m)};border-color:transparent;color:#fff` : "",
+        onclick: () => { shareSet.has(m) ? shareSet.delete(m) : shareSet.add(m); renderChips(); } },
+        ...(on ? [] : [personDot(m)]), m));
     }
   };
   renderChips();

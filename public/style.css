@@ -584,3 +584,6 @@ input[type="date"] { width: 100%; min-width: 0; }
   .recap-photos { grid-template-columns: repeat(2, 1fr); gap: 8px; }
   .recap-photo .nc-thumb { height: 84px; }
 }
+
+/* 날씨 추천 준비물 칩 */
+.pack-suggest { display: flex; flex-wrap: wrap; gap: 8px; }

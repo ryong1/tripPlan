@@ -487,3 +487,33 @@ function renderRecap() {
   // 공유
   root.append(el("button", { class: "primary", style: "width:100%;margin-top:6px", onclick: shareRecap }, "여행 요약 복사 (카톡용)"));
 }
+
+// ── 날씨 기반 준비물 추천 ──
+// 여행 기간 날씨(weatherByDate)를 분석해 챙기면 좋을 준비물 목록을 반환
+function weatherPackSuggest() {
+  if (!weatherByDate || !state) return [];
+  const ws = state.itinerary.filter((d) => d.date && weatherByDate[d.date]).map((d) => weatherByDate[d.date]);
+  if (!ws.length) return [];
+  let rain = false, snow = false, bigSwing = false, sunny = false;
+  let maxT = -99, minT = 99;
+  for (const w of ws) {
+    const c = w.code;
+    if ((c >= 51 && c <= 67) || (c >= 80 && c <= 82) || c >= 95) rain = true;
+    if ((c >= 71 && c <= 77) || (c >= 85 && c <= 86)) snow = true;
+    if (c <= 1) sunny = true;
+    if (w.tmax != null) maxT = Math.max(maxT, w.tmax);
+    if (w.tmin != null) minT = Math.min(minT, w.tmin);
+    if (w.tmax != null && w.tmin != null && w.tmax - w.tmin >= 12) bigSwing = true;
+  }
+  const recs = [];
+  const seen = new Set();
+  const add = (item, reason) => { if (!seen.has(item)) { seen.add(item); recs.push({ item, reason }); } };
+  if (rain) { add("우산", "비 예보"); add("방수 신발/우비", "비 예보"); }
+  if (snow) { add("방한 장갑", "눈 예보"); add("미끄럼 방지 신발", "눈 예보"); }
+  if (maxT >= 28) { add("선크림", "더운 날씨"); add("모자", "더운 날씨"); add("물통", "더운 날씨"); add("선글라스", "더운 날씨"); }
+  if (minT <= 4) { add("두꺼운 패딩", "추운 날씨"); add("목도리", "추운 날씨"); add("핫팩", "추운 날씨"); }
+  else if (minT <= 12) { add("겉옷/가디건", "쌀쌀한 날씨"); }
+  if (bigSwing) add("얇은 겉옷", "큰 일교차");
+  if (sunny) add("선글라스", "맑은 날");
+  return recs;
+}

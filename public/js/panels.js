@@ -280,6 +280,20 @@ function renderPacking() {
     )
   ));
 
+  // 날씨 기반 추천 (이미 목록에 있는 항목은 제외)
+  const sug = weatherPackSuggest().filter((s) => !state.packing.some((p) => p.text === s.item));
+  if (sug.length) {
+    const box = el("div", { class: "card" });
+    box.append(el("div", { class: "card-head" },
+      el("h3", {}, "날씨 추천 준비물"),
+      el("span", { style: "color:var(--muted);font-size:13px" }, weatherNormal ? "예년 날씨 기준" : "예보 기준")));
+    const chips = el("div", { class: "pack-suggest" });
+    sug.forEach((s) => chips.append(el("button", { class: "chip", title: s.reason,
+      onclick: () => send("addPacking", { text: s.item, assignee: "" }) }, "+ " + s.item)));
+    box.append(chips);
+    root.append(box);
+  }
+
   if (state.packing.length === 0) {
     root.append(el("p", { class: "empty" }, "챙길 준비물을 추가해보세요."));
     return;

@@ -60,7 +60,7 @@ function applyTheme(id) {
   renderThemeOptions();
   if (typeof updateMap === "function") updateMap(); // 지도 날짜 색을 새 테마로 갱신
 }
-applyTheme(currentTheme());
+applyTheme("ocean"); // 초기(랜딩)는 항상 오션. 저장된 테마는 여행 입장 시 적용
 $("#themeBtn").addEventListener("click", () => { renderThemeOptions(); $("#themeModal").classList.remove("hidden"); });
 $("#closeTheme").addEventListener("click", () => $("#themeModal").classList.add("hidden"));
 
@@ -168,6 +168,7 @@ function enter(tripId, name, onFail) {
     geoCache.clear(); transitCache.clear(); dayMode.clear(); Object.keys(centerAttempts).forEach((k) => delete centerAttempts[k]);
     mapDayFilter = "all";
     scrolledToday = false;
+    applyTheme(currentTheme()); // 여행 입장 시 저장된 테마 적용
     history.replaceState(null, "", "?trip=" + tripId);
     $("#landing").classList.add("hidden");
     $("#app").classList.remove("hidden");
@@ -280,13 +281,27 @@ document.querySelectorAll(".tab").forEach((btn) => {
 });
 
 $("#tripTitle").addEventListener("change", (e) => send("renameTrip", { name: e.target.value }));
-$("#editTitleBtn").addEventListener("click", () => {
-  const t = $("#tripTitle");
-  t.removeAttribute("readonly");
-  t.focus(); t.select();
-});
-$("#tripTitle").addEventListener("blur", () => $("#tripTitle").setAttribute("readonly", ""));
-$("#tripTitle").addEventListener("keydown", (e) => { if (e.key === "Enter") $("#tripTitle").blur(); });
+$("#editTitleBtn").addEventListener("click", () => openTripEdit());
+function openTripEdit() {
+  if (!state) return;
+  const nameI = el("input", { type: "text", value: state.name || "", maxlength: "100" });
+  const destI = el("input", { type: "text", value: state.destination || "", maxlength: "100" });
+  const modal = el("div", { class: "modal auto-modal" },
+    el("div", { class: "modal-card" },
+      el("h3", {}, "여행 정보 수정"),
+      el("div", { class: "field" }, el("label", {}, "여행 이름"), nameI),
+      el("div", { class: "field" }, el("label", {}, "목적지"), destI),
+      el("div", { class: "modal-actions" },
+        el("button", { class: "primary", onclick: () => {
+          const nm = nameI.value.trim(), ds = destI.value.trim();
+          if (nm && nm !== state.name) send("renameTrip", { name: nm });
+          if (ds !== (state.destination || "")) send("updateMeta", { destination: ds });
+          modal.remove();
+        } }, "저장"),
+        el("button", { class: "ghost close-modal", onclick: () => modal.remove() }, "취소"))));
+  document.body.append(modal);
+  setTimeout(() => nameI.focus(), 40);
+}
 
 // 홈(내 여행 목록)으로 돌아가기 — 랜딩의 '이어서 계획하기'를 다시 볼 수 있게
 $("#homeBtn").addEventListener("click", () => {

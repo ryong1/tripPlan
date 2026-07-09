@@ -811,3 +811,39 @@ html[data-theme="olive"] .itin-actions button { background: rgba(255, 255, 255, 
 .trip-title-input[readonly] { cursor: default; }
 .ttl-edit { flex: none; padding: 4px 8px; font-size: 12px; border: 1px solid var(--glass-edge); background: var(--surface); color: var(--muted); border-radius: var(--r); }
 .trip-title-row { display: flex; align-items: center; gap: 6px; }
+
+/* ══ 항목 상세 장소 정보 ══ */
+.place-info { display: flex; gap: 12px; align-items: center; margin-bottom: 14px; }
+.place-info .nc-thumb { width: 76px; height: 76px; border-radius: var(--r); flex: none; }
+.place-info-body { min-width: 0; flex: 1; }
+.place-info-name { font-weight: 700; font-size: 15px; }
+.place-info-addr { font-size: 12.5px; color: var(--muted); margin: 2px 0 9px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.place-info-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* 항목 종류 아이콘 */
+.acc-icon { flex: none; font-size: 15px; line-height: 1; }
+
+/* 준비물 날씨 */
+.weather-days { display: flex; gap: 10px; flex-wrap: wrap; }
+.weather-day { flex: 1 1 88px; min-width: 84px; text-align: center; background: var(--brand-soft); border-radius: var(--r); padding: 10px 8px; }
+.wd-date { font-size: 12px; color: var(--muted); font-weight: 600; }
+.wd-icon { font-size: 22px; margin: 4px 0; }
+.wd-temp { font-size: 13px; font-weight: 700; color: var(--brand-dark); }
+
+/* 탭 가독성: 활성 진하게, 비활성도 또렷하게 */
+.tab { color: var(--ink); opacity: 0.55; }
+.tab.active { opacity: 1; color: var(--brand); }
+.tab:hover { opacity: 1; }
+
+/* 포인트 폰트 (제목 등 가독성 덜 중요한 곳) */
+.landing-card h1, h2.pane-title, .diary-title, .diary-kicker, .diary-daynum { font-family: "Kirang Haerang", "Noto Sans KR", sans-serif; letter-spacing: 0; font-weight: 400; }
+.diary-title { font-size: 27px; }
+h2.pane-title { font-size: 27px; }
+.landing-card h1 { font-size: 32px; }
+
+/* 커스텀 스크롤바 */
+* { scrollbar-width: thin; scrollbar-color: var(--brand-soft) transparent; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--brand-soft); border-radius: 999px; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background: var(--brand); background-clip: padding-box; }

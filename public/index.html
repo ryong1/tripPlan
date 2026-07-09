@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Kirang+Haerang&family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
   <link rel="manifest" href="/manifest.json" />
   <meta name="theme-color" content="#1f2e52" />
@@ -58,23 +58,17 @@
         </div>
       </div>
       <p id="landingError" class="error"></p>
-      <div class="landing-theme">
-        <div class="landing-theme-label">테마</div>
-        <div id="landingThemeOpts" class="theme-opts"></div>
-      </div>
     </div>
   </div>
   <div id="app" class="app hidden">
     <header class="topbar">
       <div class="trip-title">
-        <div class="trip-title-row">
-          <input id="tripTitle" class="trip-title-input" readonly />
-          <button id="editTitleBtn" class="ttl-edit" title="여행 제목 수정">수정</button>
-        </div>
+        <input id="tripTitle" class="trip-title-input" readonly />
         <div id="tripSub" class="trip-sub"></div>
       </div>
       <div class="topbar-right">
         <span id="presence" class="presence">● 1명 접속</span>
+        <button id="editTitleBtn" class="ghost" title="여행 정보 수정">수정</button>
         <button id="themeBtn" class="ghost">테마</button>
         <button id="homeBtn" class="ghost">내 여행</button>
         <button id="shareBtn" class="ghost">공유</button>

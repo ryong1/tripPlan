@@ -61,6 +61,7 @@ function renderItineraryItem(day, it) {
       onclick: (e) => e.stopPropagation(),
       onchange: (e) => send("updateItem", { dayId: day.id, id: it.id, time: e.target.value }) }),
     el("span", { class: "tl-dot" + (it.lat != null ? " geo" : "") }, ""),
+    el("span", { class: "acc-icon", title: "장소 종류" }, placeIcon(it.place)),
     el("span", { class: "acc-title" }, it.place || "(제목 없음)"),
     ...(it.addr && !isOpen ? [el("span", { class: "acc-sub" }, it.addr.split(",")[0])] : []),
     ...(it.lat == null && !isOpen ? [el("span", { class: "acc-nogeo", title: "위치를 못 찾아 이동시간 계산에서 제외돼요. 항목을 눌러 위치를 지정하세요." }, "위치 없음")] : []),
@@ -74,28 +75,37 @@ function renderItineraryItem(day, it) {
 
   if (isOpen) {
     const body = el("div", { class: "acc-body" });
+    // 장소 정보: 사진·주소·지도 링크 (좌표 있을 때)
+    if (it.lat != null && it.place) {
+      const kakao = `https://map.kakao.com/link/map/${encodeURIComponent(it.place)},${it.lat},${it.lon}`;
+      const google = `https://www.google.com/maps/search/?api=1&query=${it.lat},${it.lon}`;
+      body.append(el("div", { class: "place-info" },
+        thumbEl({ name: it.place, lat: it.lat, lon: it.lon, category: "attraction", addr: it.addr }),
+        el("div", { class: "place-info-body" },
+          el("div", { class: "place-info-name" }, it.place),
+          el("div", { class: "place-info-addr" }, it.addr ? it.addr.split(",").slice(0, 3).join(", ") : `${it.lat.toFixed(4)}, ${it.lon.toFixed(4)}`),
+          el("div", { class: "place-info-actions" },
+            el("button", { class: "tiny", onclick: () => { focusRec = { name: it.place, lat: it.lat, lon: it.lon }; if (typeof updateMap === "function") updateMap(); const mc = $("#mapCanvas"); if (mc) mc.scrollIntoView({ behavior: "smooth", block: "center" }); } }, "지도에서 보기"),
+            el("button", { class: "tiny", onclick: () => window.open(kakao, "_blank", "noopener") }, "카카오맵"),
+            el("button", { class: "tiny", onclick: () => window.open(google, "_blank", "noopener") }, "구글맵"),
+            ...(it.link ? [el("button", { class: "tiny", onclick: () => openLink(it.link) }, "링크")] : []),
+            el("button", { class: "tiny del", onclick: () => send("updateItem", { dayId: day.id, id: it.id, lat: null, lon: null, addr: "" }) }, "위치 지우기")))));
+    }
     body.append(
-      field("장소·활동", el("input", { type: "text", value: it.place, placeholder: "장소",
+      field("장소·활동", el("input", { type: "text", value: it.place,
         onchange: (e) => send("updateItem", { dayId: day.id, id: it.id, place: e.target.value }) })),
-      field("메모", el("input", { type: "text", value: it.memo, placeholder: "메모",
+      field("메모", el("input", { type: "text", value: it.memo,
         onchange: (e) => send("updateItem", { dayId: day.id, id: it.id, memo: e.target.value }) })),
       field("지출 금액 (원)", el("div", { class: "cost-input" },
-        el("input", { type: "number", min: "0", inputmode: "numeric", value: it.cost || "", placeholder: "예: 79000",
+        el("input", { type: "number", min: "0", inputmode: "numeric", value: it.cost || "",
           onchange: (e) => send("updateItem", { dayId: day.id, id: it.id, cost: Math.max(0, Number(e.target.value) || 0) }) }),
         el("span", { class: "cost-won" }, "원"))),
       field("링크", el("div", { class: "row" },
-        el("input", { type: "url", value: it.link || "", placeholder: "https://",
+        el("input", { type: "url", value: it.link || "",
           onchange: (e) => send("updateItem", { dayId: day.id, id: it.id, link: e.target.value.trim() }) }),
         ...(it.link ? [el("button", { class: "tiny", onclick: () => openLink(it.link) }, "열기")] : [])))
     );
-    if (it.lat != null) {
-      body.append(el("div", { class: "acc-field" },
-        el("label", {}, "위치"),
-        el("div", { class: "loc-line" },
-          el("span", {}, (it.addr ? it.addr.split(",").slice(0, 3).join(", ") : `${it.lat.toFixed(4)}, ${it.lon.toFixed(4)}`)),
-          el("button", { class: "tiny", onclick: () => send("updateItem", { dayId: day.id, id: it.id, lat: null, lon: null, addr: "" }) }, "위치 지우기"))
-      ));
-    } else {
+    if (it.lat == null) {
       body.append(el("div", { class: "acc-field" },
         el("label", {}, "위치 지정"),
         searchBox("장소/주소 검색", async (r) => { const g = await ensureCoords(r); send("updateItem", { dayId: day.id, id: it.id, place: it.place || g.name, addr: g.addr || "", lat: g.lat ?? null, lon: g.lon ?? null }); })));
@@ -107,6 +117,25 @@ function renderItineraryItem(day, it) {
 
 function field(label, input) {
   return el("div", { class: "acc-field" }, el("label", {}, label), input);
+}
+
+// 장소 이름 키워드로 종류 아이콘을 대략 추정
+function placeIcon(name) {
+  const s = String(name || "");
+  const any = (arr) => arr.some((k) => s.includes(k));
+  if (any(["카페", "커피", "로스터", "베이커리", "디저트"])) return "☕";
+  if (any(["해변", "해수욕", "바다", "해안", "비치", "포구", "항구"])) return "🏖️";
+  if (any(["시장", "마켓"])) return "🛒";
+  if (any(["박물관", "미술관", "전시", "갤러리", "과학관", "기념관"])) return "🏛️";
+  if (any(["호텔", "펜션", "게스트", "모텔", "리조트", "숙소", "스테이", "호스텔"])) return "🛏️";
+  if (any(["온천", "스파", "찜질"])) return "♨️";
+  if (any(["공원", "정원", "수목원", "숲"])) return "🌳";
+  if (any(["산", "봉우리", "계곡", "국립공원", "등산", "둘레길", "폭포", "전망대", "케이블카", "타워"])) return "⛰️";
+  if (any(["절", "사찰", "서원", "향교", "한옥", "사원", "궁"])) return "🏯";
+  if (any(["회", "물회", "횟집", "식당", "맛집", "고기", "국밥", "순대", "게찜", "먹거리", "분식", "국수", "정식", "뷔페", "밥집"])) return "🍽️";
+  if (any(["펍", "호프", "와인", "맥주", "포차"])) return "🍺";
+  if (any(["쇼핑", "백화점", "아울렛", "면세"])) return "🛍️";
+  return "📍";
 }
 
 function flash(node, msg) {
@@ -265,6 +294,27 @@ function renderPacking() {
   const root = $("#tab-packing");
   root.innerHTML = "";
   root.append(el("h2", { class: "pane-title" }, "준비물"));
+
+  // 지역 날씨 (여행 날짜별)
+  if (typeof weatherByDate !== "undefined" && weatherByDate) {
+    const wdays = state.itinerary.filter((d) => d.date && weatherByDate[d.date]);
+    if (wdays.length) {
+      const wc = el("div", { class: "card" });
+      wc.append(el("div", { class: "card-head" },
+        el("h3", {}, `${state.destination || "여행지"} 날씨`),
+        el("span", { style: "font-size:12px;color:var(--muted)" }, weatherNormal ? "예년 기준" : "예보")));
+      const row = el("div", { class: "weather-days" });
+      wdays.forEach((d) => {
+        const w = weatherByDate[d.date];
+        row.append(el("div", { class: "weather-day" },
+          el("div", { class: "wd-date" }, fmtDate(d.date) || ""),
+          el("div", { class: "wd-icon" }, wmoIcon(w.code)),
+          el("div", { class: "wd-temp" }, w.tmax != null ? `${Math.round(w.tmax)}° / ${Math.round(w.tmin)}°` : "—")));
+      });
+      wc.append(row);
+      root.append(wc);
+    }
+  }
 
   const members = state.members.length ? state.members : [me];
   const textI = el("input", { type: "text", placeholder: "준비물" });

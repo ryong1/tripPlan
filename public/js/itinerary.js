@@ -483,7 +483,7 @@ function renderRecap() {
     root.append(entry);
   });
 
-  root.append(el("button", { class: "primary", style: "width:100%;margin-top:8px", onclick: shareRecap }, "일기 복사하기 (카톡용)"));
+  root.append(el("button", { class: "primary", style: "width:100%;margin-top:8px", onclick: shareRecap }, "내보내기"));
 }
 
 // ── 날씨 기반 준비물 추천 ──

@@ -656,6 +656,28 @@ html[data-theme="cream"]      .landing{ background: linear-gradient(165deg, #ede
 html[data-theme="sunset"]     { --brand: #085571; --brand-dark: #063e53; --brand-soft: rgba(8, 85, 113, 0.14); --ink: #085571; }
 html[data-theme="sunset"]     body    { background: linear-gradient(165deg, #fead91 0%, #fd9773 100%) fixed; }
 html[data-theme="sunset"]     .landing{ background: linear-gradient(165deg, #fd9773 0%, #fb8055 100%); }
+/* 올리브 — 밝은 라벤더 텍스트 + 어두운 올리브 배경 (다크 계열: 표면도 어둡게) */
+html[data-theme="olive"] {
+  --card: #2a2c10; --card-strong: #2a2c10;
+  --surface: #363a15; --hover: #43481c;
+  --ink: #b0abf8; --muted: #9691c4;
+  --line: rgba(255, 255, 255, 0.14); --glass-edge: rgba(255, 255, 255, 0.12);
+  --brand: #b0abf8; --brand-dark: #cfccfb; --brand-soft: rgba(176, 171, 248, 0.18);
+  --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 6px 18px -8px rgba(0, 0, 0, .6);
+  --shadow-lift: 0 4px 10px rgba(0, 0, 0, .4), 0 16px 34px -12px rgba(0, 0, 0, .7);
+}
+html[data-theme="olive"] body    { background: linear-gradient(165deg, #4c5104 0%, #3d4103 100%) fixed; }
+html[data-theme="olive"] .landing{ background: linear-gradient(165deg, #3d4103 0%, #2f3202 100%); }
+html[data-theme="olive"] input::placeholder, html[data-theme="olive"] textarea::placeholder { color: #7d79ab; }
+/* 브랜드가 밝은 색이라 그 위 글자는 어둡게 */
+html[data-theme="olive"] button.primary,
+html[data-theme="olive"] .tab.active,
+html[data-theme="olive"] .chip.on,
+html[data-theme="olive"] .day-chip.on,
+html[data-theme="olive"] .nearby-cat.on,
+html[data-theme="olive"] .today-badge,
+html[data-theme="olive"] .mode-toggle .seg.on { color: #2b2d08; }
+html[data-theme="olive"] button.primary:hover { color: #2b2d08; }
 
 /* 테마 선택 UI */
 .theme-opts { display: flex; flex-wrap: wrap; gap: 14px; }

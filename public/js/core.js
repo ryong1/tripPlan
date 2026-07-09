@@ -40,6 +40,7 @@ const THEMES = [
   { id: "grape", name: "포도", dot: "linear-gradient(135deg,#035500 50%,#b875f7 50%)" },
   { id: "cream", name: "크림", dot: "linear-gradient(135deg,#0f1342 50%,#f4eec0 50%)" },
   { id: "sunset", name: "노을", dot: "linear-gradient(135deg,#085571 50%,#fead91 50%)" },
+  { id: "olive", name: "올리브", dot: "linear-gradient(135deg,#b0abf8 50%,#4c5104 50%)" },
 ];
 function currentTheme() { try { return localStorage.getItem("tp_theme") || "ocean"; } catch { return "ocean"; } }
 function renderThemeOptions() {

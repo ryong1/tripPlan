@@ -774,3 +774,40 @@ input:focus, select:focus, textarea:focus { box-shadow: 0 0 0 3px var(--brand-so
 /* 다크 계열 테마: 흰 반투명이 너무 밝지 않게 */
 html[data-theme="dark"] .itin-actions button,
 html[data-theme="olive"] .itin-actions button { background: rgba(255, 255, 255, 0.1); }
+
+/* ══ 탭을 밑줄형(index 스타일)로 / 날짜·정보 배지 제거 ══ */
+.tabs { gap: 4px; padding: 0 12px; align-items: stretch; }
+.tab { border-radius: 0; padding: 12px 14px; border-bottom: 3px solid transparent; background: transparent; color: var(--muted); font-weight: 600; box-shadow: none; }
+.tab:hover { background: transparent; color: var(--ink); }
+.tab.active { background: transparent; color: var(--brand); border-bottom-color: var(--brand); font-weight: 700; box-shadow: none; }
+.tab.active:hover { background: transparent; color: var(--brand); }
+
+.day-date { background: transparent; color: var(--brand-dark); padding: 0; font-size: 17px; font-weight: 800; }
+.day-total { background: transparent; color: var(--muted); padding: 0; font-weight: 600; }
+
+/* ══ 여행 일기(요약) ══ */
+.diary-cover { text-align: center; padding: 20px 16px 4px; }
+.diary-kicker { font-size: 11px; letter-spacing: .22em; color: var(--muted); font-weight: 700; }
+.diary-title { font-size: 24px; font-weight: 800; letter-spacing: -.02em; margin: 6px 0 4px; }
+.diary-cover-sub { color: var(--muted); font-size: 13.5px; }
+.diary-intro { text-align: center; color: var(--ink); font-size: 15px; line-height: 1.65; margin: 6px auto 18px; max-width: 520px; }
+.diary-entry { background: var(--card); border: 1px solid var(--glass-edge); border-left: 3px solid var(--brand); border-radius: var(--r); box-shadow: var(--shadow); padding: 16px 18px; margin-bottom: 14px; }
+.diary-dayline { display: flex; align-items: center; gap: 10px; margin-bottom: 9px; }
+.diary-daynum { font-size: 12px; font-weight: 800; color: #fff; background: var(--brand); border-radius: 999px; padding: 3px 11px; }
+.diary-date { font-weight: 700; color: var(--brand-dark); }
+.diary-weather { margin-left: auto; font-size: 13px; color: var(--muted); font-weight: 600; }
+.diary-narr { font-size: 15px; line-height: 1.7; color: var(--ink); margin: 2px 0 12px; }
+.diary-photos { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; }
+.diary-photo { flex: 0 0 120px; }
+.diary-photo .nc-thumb { width: 120px; height: 88px; border-radius: var(--r); }
+.diary-cap { font-size: 12px; color: var(--muted); margin-top: 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.diary-meta { margin-top: 10px; font-size: 13px; color: var(--muted); font-weight: 600; }
+@media (max-width: 560px) { .diary-photo { flex-basis: 104px; } .diary-photo .nc-thumb { width: 104px; height: 78px; } }
+
+/* 다녀옴 체크 버튼도 테마색 */
+.done-btn.on { background: var(--brand); border-color: var(--brand); color: #fff; }
+
+/* 여행 제목: 평소 텍스트처럼, 수정 버튼으로 편집 */
+.trip-title-input[readonly] { cursor: default; }
+.ttl-edit { flex: none; padding: 4px 8px; font-size: 12px; border: 1px solid var(--glass-edge); background: var(--surface); color: var(--muted); border-radius: var(--r); }
+.trip-title-row { display: flex; align-items: center; gap: 6px; }

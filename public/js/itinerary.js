@@ -424,68 +424,66 @@ function recapStat(label, value, cls) {
     el("div", { class: "summary-value" + (cls ? " " + cls : "") }, value));
 }
 
+function dayNarrative(d) {
+  const names = d.items.map((it) => it.place).filter(Boolean);
+  if (!names.length) return null;
+  if (names.length === 1) return `${names[0]}에 다녀왔어요.`;
+  return `${names.slice(0, -1).join(", ")} 그리고 ${names[names.length - 1]}을(를) 둘러봤어요.`;
+}
+
 function renderRecap() {
   const root = $("#tab-recap");
   if (!root || !state) return;
   root.innerHTML = "";
-  root.append(el("h2", { class: "pane-title" }, "여행 요약"));
-
   const days = state.itinerary;
   const placed = [];
   days.forEach((d) => d.items.forEach((it) => placed.push(it)));
 
+  // 일기 표지
+  const range = state.startDate ? `${fmtDate(state.startDate)} ~ ${fmtDate(state.endDate)}` : "";
+  root.append(el("div", { class: "diary-cover" },
+    el("div", { class: "diary-kicker" }, "TRAVEL DIARY"),
+    el("h2", { class: "diary-title" }, `${state.name} 여행 일기`),
+    el("div", { class: "diary-cover-sub" }, [state.destination, range].filter(Boolean).join("  ·  "))));
+
   if (!placed.length) {
-    root.append(el("p", { class: "empty" }, "아직 담은 장소가 없어요. 일정을 채우면 여행이 끝난 뒤 이곳에서 돌아볼 수 있어요."));
+    root.append(el("p", { class: "empty" }, "아직 담은 장소가 없어요. 일정을 채우면 여기에 여행 일기가 써져요. ✍️"));
     return;
   }
 
-  // 상태 배너
-  const today = todayISO();
-  if (state.endDate && today > state.endDate) {
-    root.append(el("div", { class: "recap-banner" }, "여행이 끝났어요! 이번 여행을 돌아볼까요?"));
-  } else if (state.startDate && today >= state.startDate) {
-    root.append(el("div", { class: "recap-banner" }, "여행 진행 중이에요. 지금까지의 기록이에요."));
-  }
-
-  // 통계
-  const members = state.members.length || 1;
   const spent = state.expenses.reduce((s, e) => s + (Number(e.amount) || 0), 0) + tripSpent();
   let km = 0;
   for (const d of days) { const g = d.items.filter((it) => it.lat != null); for (let i = 0; i < g.length - 1; i++) km += haversineKm(g[i], g[i + 1]); }
-  const doneCount = placed.filter((it) => it.done).length;
-  root.append(el("div", { class: "summary-header" },
-    recapStat("총 지출", won(spent)),
-    recapStat("1인당", won(Math.round(spent / members))),
-    recapStat("다녀온 곳", `${doneCount}/${placed.length}곳`),
-    recapStat("총 이동", km > 0 ? `약 ${Math.round(km)}km` : "—", "muted")));
+  const done = state.endDate && todayISO() > state.endDate;
+  root.append(el("p", { class: "diary-intro" },
+    `${done ? "이번 여행에서 " : "지금까지 "}${days.length}일 동안 ${placed.length}곳을 다니고, ${km > 0 ? `약 ${Math.round(km)}km를 움직이며 ` : ""}${won(spent)}을 썼어요. ✨`));
 
-  // 날짜별 코스
+  const showPhotos = root.classList.contains("active");
   days.forEach((d, di) => {
-    const card = el("div", { class: "card day-card" });
-    const head = el("div", { class: "day-head" }, el("div", { class: "day-date" }, fmtDate(d.date) || `${di + 1}일차`));
-    if (dayCost(d) > 0) head.append(el("span", { class: "day-spend" }, "지출 " + won(dayCost(d))));
-    card.append(head);
-    if (!d.items.length) card.append(el("p", { class: "recap-empty" }, "일정 없음"));
-    else d.items.forEach((it) => card.append(el("div", { class: "recap-row" + (it.done ? " done" : "") },
-      el("span", { class: "recap-time" }, it.time || "—"),
-      el("span", { class: "recap-place" }, (it.done ? "✓ " : "") + (it.place || "(제목 없음)")),
-      ...(itemCost(it) > 0 ? [el("span", { class: "recap-cost" }, won(itemCost(it)))] : []))));
-    root.append(card);
+    const w = weatherByDate && weatherByDate[d.date];
+    const entry = el("div", { class: "diary-entry" });
+    entry.append(el("div", { class: "diary-dayline" },
+      el("span", { class: "diary-daynum" }, `Day ${di + 1}`),
+      el("span", { class: "diary-date" }, fmtDate(d.date) || `${di + 1}일차`),
+      ...(w && w.tmax != null ? [el("span", { class: "diary-weather" }, `${wmoIcon(w.code)} ${Math.round(w.tmax)}° / ${Math.round(w.tmin)}°`)] : [])));
+    entry.append(el("p", { class: "diary-narr" }, dayNarrative(d) || "이 날은 아직 비어 있어요."));
+    if (d.items.length && showPhotos) {
+      const strip = el("div", { class: "diary-photos" });
+      d.items.filter((it) => it.place).slice(0, 10).forEach((it) => {
+        const thumb = thumbEl({ name: it.place, lat: it.lat, lon: it.lon, category: "attraction", addr: it.addr });
+        strip.append(el("div", { class: "diary-photo" }, thumb, el("div", { class: "diary-cap" }, (it.done ? "✓ " : "") + it.place)));
+      });
+      entry.append(strip);
+    }
+    if (d.items.length) {
+      const bits = [`📍 ${d.items.length}곳`];
+      if (dayCost(d) > 0) bits.push(`💸 ${won(dayCost(d))}`);
+      entry.append(el("div", { class: "diary-meta" }, bits.join("   ")));
+    }
+    root.append(entry);
   });
 
-  // 사진 모아보기 (탭이 활성일 때만 이미지 로드 — 요청 절약)
-  const geoItems = placed.filter((it) => it.lat != null && it.place);
-  if (geoItems.length && root.classList.contains("active")) {
-    const grid = el("div", { class: "recap-photos" });
-    geoItems.slice(0, 24).forEach((it) => {
-      const thumb = thumbEl({ name: it.place, lat: it.lat, lon: it.lon, category: "attraction", addr: it.addr });
-      grid.append(el("div", { class: "recap-photo" }, thumb, el("div", { class: "recap-photo-name" }, it.place)));
-    });
-    root.append(el("div", { class: "card" }, el("div", { class: "card-head" }, el("h3", {}, "사진 모아보기")), grid));
-  }
-
-  // 공유
-  root.append(el("button", { class: "primary", style: "width:100%;margin-top:6px", onclick: shareRecap }, "여행 요약 복사 (카톡용)"));
+  root.append(el("button", { class: "primary", style: "width:100%;margin-top:8px", onclick: shareRecap }, "일기 복사하기 (카톡용)"));
 }
 
 // ── 날씨 기반 준비물 추천 ──

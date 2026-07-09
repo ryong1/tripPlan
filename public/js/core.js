@@ -280,6 +280,13 @@ document.querySelectorAll(".tab").forEach((btn) => {
 });
 
 $("#tripTitle").addEventListener("change", (e) => send("renameTrip", { name: e.target.value }));
+$("#editTitleBtn").addEventListener("click", () => {
+  const t = $("#tripTitle");
+  t.removeAttribute("readonly");
+  t.focus(); t.select();
+});
+$("#tripTitle").addEventListener("blur", () => $("#tripTitle").setAttribute("readonly", ""));
+$("#tripTitle").addEventListener("keydown", (e) => { if (e.key === "Enter") $("#tripTitle").blur(); });
 
 // 홈(내 여행 목록)으로 돌아가기 — 랜딩의 '이어서 계획하기'를 다시 볼 수 있게
 $("#homeBtn").addEventListener("click", () => {

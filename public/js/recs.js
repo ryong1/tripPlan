@@ -83,7 +83,7 @@ function paintRegionRecs(cat, list) {
 }
 
 const recImgCache = new Map();   // wikiKey/imageUrl -> url|null
-const recImgInflight = new Set(); // 카카오 이미지 검색 in-flight 가드
+const recImgInflight = new Map(); // 카카오 이미지 검색 in-flight 가드: kk -> [onDone,...]
 let focusRec = null;             // '지도에서 보기'로 강조할 추천
 const CAT_KR = { restaurant: "식당", cafe: "카페", bar: "술집", fast_food: "분식", pub: "펍",
   attraction: "볼거리", museum: "박물관", viewpoint: "전망대", theme_park: "테마파크",
@@ -107,7 +107,7 @@ function cachedRecImage(rec) {
   if (recImgCache.has(kk) && recImgCache.get(kk)) return recImgCache.get(kk); // 카카오 성공분만 즉시 사용
   const wk = wikiKey(rec);
   if (wk && recImgCache.has(wk.key)) return recImgCache.get(wk.key);
-  if (recImgCache.has(geoImgKey(rec))) return recImgCache.get(geoImgKey(rec));
+  if (rec.lat != null && rec.lon != null && recImgCache.has(geoImgKey(rec))) return recImgCache.get(geoImgKey(rec));
   return undefined;
 }
 const hasHangul = (s) => /[가-힣]/.test(s || "");
@@ -117,14 +117,14 @@ function resolveRecImage(rec, onDone) {
     const kk = kakaoImgKey(rec);
     if (recImgCache.has(kk)) { const v = recImgCache.get(kk); if (v) { onDone(v); return; } }
     else {
-      if (recImgInflight.has(kk)) return; // 이미 요청 중이면 재요청 안 함
-      recImgInflight.add(kk);
+      if (recImgInflight.has(kk)) { recImgInflight.get(kk).push(onDone); return; } // 이미 요청 중이면 콜백만 대기열에 추가
+      recImgInflight.set(kk, [onDone]);
       const q = ((state && state.destination ? state.destination + " " : "") + rec.name).trim();
       fetch("/api/image?q=" + encodeURIComponent(q)).then((r) => r.json()).then((d) => {
-        recImgInflight.delete(kk);
+        const cbs = recImgInflight.get(kk) || []; recImgInflight.delete(kk);
         const u = (d && d.url) || null; recImgCache.set(kk, u);
-        if (u) onDone(u); else resolveWikiImage(rec, onDone);
-      }).catch(() => { recImgInflight.delete(kk); recImgCache.set(kk, null); resolveWikiImage(rec, onDone); });
+        if (u) cbs.forEach((cb) => cb(u)); else cbs.forEach((cb) => resolveWikiImage(rec, cb));
+      }).catch(() => { const cbs = recImgInflight.get(kk) || []; recImgInflight.delete(kk); recImgCache.set(kk, null); cbs.forEach((cb) => resolveWikiImage(rec, cb)); });
       return;
     }
   }
@@ -140,6 +140,7 @@ function resolveWikiImage(rec, onDone) {
     return;
   }
   // 좌표 기반 위키백과 사진 (반경 200m 내 문서 썸네일) — 명소류 커버리지 보강
+  if (rec.lat == null || rec.lon == null) { onDone(null); return; } // 좌표 없으면 geosearch 불가(공유 캐시 오염 방지)
   const ck = geoImgKey(rec);
   if (recImgCache.has(ck)) { onDone(recImgCache.get(ck)); return; }
   const u = `https://ko.wikipedia.org/w/api.php?action=query&format=json&origin=*`

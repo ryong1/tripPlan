@@ -219,7 +219,7 @@ function renderExpenses() {
   ));
 
   // 예산 대비 지출 (경비정산 + 일정 항목 지출 합산)
-  const expSpent = state.expenses.reduce((s, e) => s + e.amount, 0);
+  const expSpent = state.expenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
   const itinSpent = tripSpent();
   const spent = expSpent + itinSpent;
   const perBudget = state.budget || 0;
@@ -252,12 +252,12 @@ function renderExpenses() {
     listCard.append(el("p", { class: "empty" }, "아직 지출 내역이 없어요."));
   } else {
     for (const e of state.expenses) {
-      total += e.amount;
+      total += Number(e.amount) || 0;
       listCard.append(el("div", { class: "expense-row" },
         el("div", { class: "desc" },
           el("div", {}, e.desc),
           el("div", { style: "font-size:12px;color:var(--muted);display:flex;align-items:center;gap:5px" },
-            personDot(e.payer), `${e.payer || "?"} 결제 · ${e.sharedBy.length}명 분담`)
+            personDot(e.payer), `${e.payer || "?"} 결제 · ${(Array.isArray(e.sharedBy) ? e.sharedBy : []).length}명 분담`)
         ),
         el("span", { class: "amt" }, won(e.amount)),
         el("button", { class: "del tiny", onclick: () => send("removeExpense", { id: e.id }) }, "✕")
@@ -295,7 +295,7 @@ function computeBalances() {
   const bal = {};
   const touch = (n) => { if (n && !(n in bal)) bal[n] = 0; };
   for (const e of state.expenses) {
-    const sharers = e.sharedBy.length ? e.sharedBy : [];
+    const sharers = Array.isArray(e.sharedBy) ? e.sharedBy : [];
     if (!sharers.length) continue;
     touch(e.payer);
     bal[e.payer] += e.amount;

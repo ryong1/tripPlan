@@ -54,13 +54,13 @@ function renderThemeOptions() {
       el("span", { class: "theme-opt-name" }, t.name))));
   }
 }
-function applyTheme(id) {
+function applyTheme(id, persist = true) {
   document.documentElement.setAttribute("data-theme", id);
-  try { localStorage.setItem("tp_theme", id); } catch {}
+  if (persist) { try { localStorage.setItem("tp_theme", id); } catch {} }
   renderThemeOptions();
   if (typeof updateMap === "function") updateMap(); // 지도 날짜 색을 새 테마로 갱신
 }
-applyTheme("ocean"); // 초기(랜딩)는 항상 오션. 저장된 테마는 여행 입장 시 적용
+applyTheme("ocean", false); // 초기(랜딩)는 항상 오션. 저장된 테마를 덮어쓰지 않도록 저장하지 않음. 저장된 테마는 여행 입장 시 적용
 $("#themeBtn").addEventListener("click", () => { renderThemeOptions(); $("#themeModal").classList.remove("hidden"); });
 $("#closeTheme").addEventListener("click", () => $("#themeModal").classList.add("hidden"));
 
@@ -164,9 +164,18 @@ function enter(tripId, name, onFail) {
     if (resp.error) { showLandingError(resp.error); if (onFail) onFail(resp.error); return; }
     saveRecent(resp.trip);
     // 여행 전환 시 이전 여행의 추천/스크롤 상태 초기화
-    recState = null; nearbyCache.clear(); nearbyInflight.clear(); recCenterCache.clear();
-    geoCache.clear(); transitCache.clear(); dayMode.clear(); Object.keys(centerAttempts).forEach((k) => delete centerAttempts[k]);
-    mapDayFilter = "all";
+    // 다른 파일에서 정의된 캐시들 — 로드 순서/미정의로 ReferenceError가 나면 랜딩에 갇히므로 각각 방어
+    try {
+      if (typeof recState !== "undefined") recState = null;
+      if (typeof nearbyCache !== "undefined") nearbyCache.clear();
+      if (typeof nearbyInflight !== "undefined") nearbyInflight.clear();
+      if (typeof recCenterCache !== "undefined") recCenterCache.clear();
+      if (typeof geoCache !== "undefined") geoCache.clear();
+      if (typeof transitCache !== "undefined") transitCache.clear();
+      if (typeof dayMode !== "undefined") dayMode.clear();
+      if (typeof centerAttempts !== "undefined") Object.keys(centerAttempts).forEach((k) => delete centerAttempts[k]);
+      if (typeof mapDayFilter !== "undefined") mapDayFilter = "all";
+    } catch {}
     scrolledToday = false;
     applyTheme(currentTheme()); // 여행 입장 시 저장된 테마 적용
     history.replaceState(null, "", "?trip=" + tripId);
@@ -242,7 +251,12 @@ socket.on("presence", ({ online, people }) => {
   else ppl.forEach((p) => box.append(el("span", { class: "pres-person" + (p.editing ? " editing" : "") },
     personDot(p.name), (p.name || "") + (p.editing ? " ✎" : ""))));
   // 경비정산 탭이 열려 있으면 '함께하는 사람' 접속 상태 갱신
-  if (typeof renderExpenses === "function" && $("#tab-expenses").classList.contains("active")) renderExpenses();
+  // 단, 경비 입력창에 포커스가 있으면 재빌드가 커서/입력을 날리므로 건너뜀 (접속 표시만 위 roster로 갱신됨)
+  if (typeof renderExpenses === "function" && $("#tab-expenses").classList.contains("active")) {
+    const ae = document.activeElement;
+    const typingInExpenses = ae && ["INPUT", "TEXTAREA", "SELECT"].includes(ae.tagName) && ae.closest("#tab-expenses");
+    if (!typingInExpenses) renderExpenses();
+  }
 });
 
 // 공유 모달의 멤버 색상 편집 (스와치 클릭 시 다음 색으로 순환)
@@ -306,8 +320,9 @@ function openTripEdit() {
           const nm = nameI.value.trim(), ds = destI.value.trim();
           if (nm && nm !== state.name) send("renameTrip", { name: nm });
           if (ds !== (state.destination || "")) send("updateMeta", { destination: ds });
-          const sd = startI.value, ed = endI.value || startI.value;
-          if (sd && (sd !== state.startDate || ed !== state.endDate)) send("updateDates", { startDate: sd, endDate: ed });
+          const sd = startI.value, ed = endI.value;
+          if (sd && ed && ed < sd) { toast("도착일이 출발일보다 빠를 수 없어요."); return; }
+          if (sd !== (state.startDate || "") || ed !== (state.endDate || "")) send("updateDates", { startDate: sd, endDate: ed });
           modal.remove();
         } }, "저장"),
         el("button", { class: "ghost close-modal", onclick: () => modal.remove() }, "취소"))));
@@ -409,7 +424,7 @@ let scrolledToday = false;
 function render() {
   if (!state) return;
   if (isEditing()) { pendingRender = true; return; }
-  $("#tripTitle").value = state.name;
+  $("#tripTitle").value = state.name || "";
   const range = state.startDate ? `${fmtDate(state.startDate)} ~ ${fmtDate(state.endDate)}` : "";
   $("#tripSub").textContent = [state.destination && "📍 " + state.destination, range].filter(Boolean).join("  ·  ");
   if (state.destination) getTripCenter(); // 검색 편향용 목적지 중심 미리 확보

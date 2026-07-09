@@ -104,6 +104,9 @@ function flushSync() {
 process.on("SIGINT", () => { flushSync(); process.exit(0); });
 process.on("SIGTERM", () => { flushSync(); process.exit(0); });
 process.on("beforeExit", () => { flushSync(); });
+// 치명적 예외: 저장 후 종료 / 미처리 rejection: 로그+저장하되 종료하지 않음
+process.on("uncaughtException", (e) => { console.error("치명적 예외:", e); flushSync(); process.exit(1); });
+process.on("unhandledRejection", (e) => { console.error("미처리 rejection:", e); flushSync(); });
 
 function genDays(startDate, endDate) {
   const days = [];
@@ -125,8 +128,8 @@ function genDays(startDate, endDate) {
 function newTrip(opts = {}) {
   return {
     id: randomUUID().slice(0, 8),
-    name: opts.name || "우리 여행",
-    destination: opts.destination || "",
+    name: String(opts.name || "우리 여행").slice(0, 100),
+    destination: String(opts.destination || "").slice(0, 100),
     startDate: opts.startDate || "",
     endDate: opts.endDate || "",
     createdAt: new Date().toISOString(),
@@ -182,14 +185,20 @@ function applyAction(trip, action, user) {
       if (!newDays.length) break;
       // 날짜가 같은 날은 기존 항목을 그대로 이어받고, 사라진 날의 항목은 첫날로 모음
       const oldByDate = {};
-      for (const d of trip.itinerary) oldByDate[d.date] = d;
+      for (const d of trip.itinerary) {
+        const items = Array.isArray(d.items) ? d.items : [];
+        // 같은 날짜가 여러 번 나오면 항목을 병합(마지막이 덮어쓰지 않도록)
+        if (oldByDate[d.date]) oldByDate[d.date].items = oldByDate[d.date].items.concat(items);
+        else oldByDate[d.date] = { id: d.id, ids: [d.id], items: items.slice() };
+        if (oldByDate[d.date].ids && !oldByDate[d.date].ids.includes(d.id)) oldByDate[d.date].ids.push(d.id);
+      }
       const carried = new Set();
       for (const nd of newDays) {
         const od = oldByDate[nd.date];
-        if (od) { nd.items = od.items; carried.add(od.id); }
+        if (od) { nd.items = od.items; for (const cid of od.ids) carried.add(cid); }
       }
       const leftover = [];
-      for (const d of trip.itinerary) if (!carried.has(d.id)) leftover.push(...d.items);
+      for (const d of trip.itinerary) if (!carried.has(d.id)) leftover.push(...(Array.isArray(d.items) ? d.items : []));
       if (leftover.length) newDays[0].items.push(...leftover);
       trip.startDate = sd;
       trip.endDate = ed;
@@ -305,10 +314,10 @@ function applyAction(trip, action, user) {
     case "updateExpense": {
       const e = trip.expenses.find((x) => x.id === payload.id);
       if (e) {
-        if (payload.desc !== undefined) e.desc = payload.desc;
-        if (payload.amount !== undefined) e.amount = Number(payload.amount) || 0;
-        if (payload.payer !== undefined) e.payer = payload.payer;
-        if (payload.sharedBy !== undefined) e.sharedBy = payload.sharedBy;
+        if (payload.desc !== undefined) e.desc = String(payload.desc || "").slice(0, 300);
+        if (payload.amount !== undefined) e.amount = Math.max(0, Number(payload.amount) || 0);
+        if (payload.payer !== undefined) e.payer = String(payload.payer || "").slice(0, 60);
+        if (payload.sharedBy !== undefined) e.sharedBy = Array.isArray(payload.sharedBy) ? payload.sharedBy.filter((x) => typeof x === "string").slice(0, 50) : e.sharedBy;
       }
       break;
     }
@@ -325,7 +334,11 @@ function applyAction(trip, action, user) {
     case "updatePlace": {
       const p = trip.places.find((x) => x.id === payload.id);
       if (p) {
-        for (const k of ["name", "memo", "lat", "lon", "addr"]) if (payload[k] !== undefined) p[k] = payload[k];
+        if (payload.name !== undefined) p.name = String(payload.name || "").slice(0, 300);
+        if (payload.memo !== undefined) p.memo = String(payload.memo || "").slice(0, 300);
+        if (payload.addr !== undefined) p.addr = String(payload.addr || "").slice(0, 300);
+        if (payload.lat !== undefined) p.lat = normCoord(payload.lat);
+        if (payload.lon !== undefined) p.lon = normCoord(payload.lon);
       }
       break;
     }
@@ -348,8 +361,8 @@ function applyAction(trip, action, user) {
     case "updatePacking": {
       const p = trip.packing.find((x) => x.id === payload.id);
       if (p) {
-        if (payload.text !== undefined) p.text = payload.text;
-        if (payload.assignee !== undefined) p.assignee = payload.assignee;
+        if (payload.text !== undefined) p.text = String(payload.text || "").slice(0, 300);
+        if (payload.assignee !== undefined) p.assignee = String(payload.assignee || "").slice(0, 60);
         if (payload.done !== undefined) p.done = !!payload.done;
       }
       break;
@@ -369,6 +382,7 @@ app.use(express.json());
 app.use(express.static(join(__dirname, "public")));
 
 app.post("/api/trips", (req, res) => {
+  if (Object.keys(trips).length >= 5000) return res.status(429).json({ error: "too_many_trips" });
   const trip = newTrip(req.body || {});
   trips[trip.id] = trip;
   persist();
@@ -467,7 +481,7 @@ app.get("/api/ai/course", async (req, res) => {
     balanced: "관광·맛집·휴식이 고루 섞인 균형 잡힌 구성",
   };
   const style = STYLE_KR[String(req.query.style)] || STYLE_KR.balanced;
-  const musts = String(req.query.musts || "").split(",").map((s) => s.trim()).filter(Boolean).slice(0, 8);
+  const musts = String(req.query.musts || "").split(",").map((s) => s.trim().slice(0, 40)).filter(Boolean).slice(0, 8);
   const mustsLine = musts.length ? `\n- 여행 중 다음 요소를 반드시 포함하세요: ${musts.join(", ")}.` : "";
   const prompt = `당신은 한국 여행 전문 플래너입니다. 목적지 "${dest}"에서 ${days}일 여행 일정을 만들어 주세요.
 각 날은 하루 4~6곳을 "오전 관광 → 점심 식당 → 오후 관광/체험 → 카페 → 저녁 식당" 흐름으로 구성하세요.
@@ -656,7 +670,7 @@ io.on("connection", (socket) => {
     userName = (name || "익명").slice(0, 30);
     socket.join(id);
     (presence[id] = presence[id] || new Map()).set(socket.id, { name: userName, editing: false });
-    if (userName && !trip.members.includes(userName)) {
+    if (userName && !trip.members.includes(userName) && trip.members.length < 200) {
       trip.members.push(userName);
       persist();
     }

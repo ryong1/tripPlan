@@ -19,7 +19,7 @@ function loadWeather() {
   const days = state.itinerary;
   if (!days.length || !days[0].date) return;
   let lat = null, lon = null;
-  for (const d of days) { for (const it of d.items) if (it.lat != null) { lat = it.lat; lon = it.lon; break; } if (lat != null) break; }
+  for (const d of days) { for (const it of d.items) if (it.lat != null && it.lon != null) { lat = it.lat; lon = it.lon; break; } if (lat != null) break; }
   if (lat == null) { // 항목 좌표가 없으면 목적지 좌표로
     const c = recCenterCache.get(state.destination);
     if (c && c !== "pending") { lat = c.lat; lon = c.lon; }
@@ -37,7 +37,7 @@ function loadWeather() {
   const daily = "daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto";
   fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&${daily}&start_date=${start}&end_date=${end}`)
     .then((r) => r.json()).then((d) => {
-      if (d.daily && d.daily.time && d.daily.time.length && d.daily.temperature_2m_max.some((v) => v != null)) {
+      if (d.daily && d.daily.time && d.daily.time.length && d.daily.temperature_2m_max && d.daily.temperature_2m_max.some((v) => v != null)) {
         apply(d.daily, false); return;
       }
       // 예보 범위(약 16일) 밖 → 작년 같은 기간(예년) 기록으로 대체
@@ -51,7 +51,7 @@ function loadWeather() {
       };
       const ly = (iso) => shiftYear(iso, -1);
       fetch(`https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}&${daily}&start_date=${ly(start)}&end_date=${ly(end)}`)
-        .then((r) => r.json()).then((a) => { if (a.daily && a.daily.time && a.daily.temperature_2m_max.some((v) => v != null)) apply(a.daily, true, (t) => shiftYear(t, 1)); })
+        .then((r) => r.json()).then((a) => { if (a.daily && a.daily.time && a.daily.temperature_2m_max && a.daily.temperature_2m_max.some((v) => v != null)) apply(a.daily, true, (t) => shiftYear(t, 1)); })
         .catch(() => {});
     }).catch(() => {});
 }
@@ -67,7 +67,7 @@ function shiftYearISO(iso, delta) {
   return y + md;
 }
 function weatherLatLon() {
-  for (const d of state.itinerary) for (const it of d.items) if (it.lat != null) return { lat: it.lat, lon: it.lon };
+  for (const d of state.itinerary) for (const it of d.items) if (it.lat != null && it.lon != null) return { lat: it.lat, lon: it.lon };
   const c = recCenterCache.get(state.destination);
   return (c && c !== "pending") ? c : null;
 }
@@ -87,7 +87,7 @@ function loadHourly(date) {
   const q = "hourly=temperature_2m,weather_code,precipitation_probability&timezone=auto";
   fetch(`https://api.open-meteo.com/v1/forecast?latitude=${ll.lat}&longitude=${ll.lon}&${q}&start_date=${date}&end_date=${date}`)
     .then((r) => r.json()).then((d) => {
-      if (d.hourly && d.hourly.time && d.hourly.temperature_2m.some((v) => v != null)) { hourlyByDate[date] = packHourly(d.hourly); renderPacking(); return; }
+      if (d.hourly && d.hourly.time && d.hourly.temperature_2m && d.hourly.temperature_2m.some((v) => v != null)) { hourlyByDate[date] = packHourly(d.hourly); renderPacking(); return; }
       const ly = shiftYearISO(date, -1);
       fetch(`https://archive-api.open-meteo.com/v1/archive?latitude=${ll.lat}&longitude=${ll.lon}&${q}&start_date=${ly}&end_date=${ly}`)
         .then((r) => r.json()).then((a) => { hourlyByDate[date] = (a.hourly && a.hourly.time) ? packHourly(a.hourly) : null; renderPacking(); })
@@ -114,7 +114,7 @@ function optimizeRoute() {
   const chunks = splitBalanced(ordered, days.length);
   const assignments = days.map((d, di) => ({
     dayId: d.id,
-    items: chunks[di].map((it, i) => ({ id: it.id, time: slotTime(i) })),
+    items: (chunks[di] || []).map((it, i) => ({ id: it.id, time: slotTime(i) })),
   }));
   send("reflow", { assignments });
   toast("최적 동선으로 정리했어요");
@@ -232,6 +232,7 @@ function openAiOptions() {
 
 // AI(무료 Gemini) 추천 코스 실행 — 실제 장소명으로 일정 생성 후 좌표를 붙여 배치
 async function runAiCourse(prefs) {
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const days = state.itinerary;
   const loading = el("div", { class: "modal auto-modal" },
     el("div", { class: "modal-card" }, el("p", { class: "ai-loading", id: "aiLoadingText" }, "AI가 코스를 짜고 있어요… (10~20초)")));
@@ -247,7 +248,7 @@ async function runAiCourse(prefs) {
     if (!data.days || !Array.isArray(data.days)) { loading.remove(); alert("AI 응답을 받지 못했어요. 잠시 후 다시 시도해주세요."); return; }
     setLoad("장소 위치를 찾는 중…");
     const assignments = [];
-    let total = 0;
+    let total = 0, geocoded = 0;
     for (let i = 0; i < days.length; i++) {
       const aiDay = data.days[i] || { items: [] };
       const items = [];
@@ -260,7 +261,9 @@ async function runAiCourse(prefs) {
         if (aiOk) {
           lat = it.lat; lon = it.lon;
         } else {
+          if (geocoded > 0) await sleep(500); // 순차 지오코딩 429 폭주 방지(호출 간 간격)
           const hits = await searchPlaces(it.place, true); // AI 좌표가 없을 때만 조회(정확도 우선)
+          geocoded++;
           const g = hits[0];
           if (g) { lat = g.lat; lon = g.lon; addr = g.addr || ""; }
         }
@@ -500,7 +503,7 @@ function renderRecap() {
     entry.append(el("div", { class: "diary-dayline" },
       el("span", { class: "diary-daynum" }, `Day ${di + 1}`),
       el("span", { class: "diary-date" }, fmtDate(d.date) || `${di + 1}일차`),
-      ...(w && w.tmax != null ? [el("span", { class: "diary-weather" }, `${wmoIcon(w.code)} ${Math.round(w.tmax)}° / ${Math.round(w.tmin)}°`)] : [])));
+      ...(w && w.tmax != null ? [el("span", { class: "diary-weather" }, `${wmoIcon(w.code)} ${Math.round(w.tmax)}°${w.tmin != null ? " / " + Math.round(w.tmin) + "°" : ""}`)] : [])));
     entry.append(el("p", { class: "diary-narr" }, dayNarrative(d) || "이 날은 아직 비어 있어요."));
     if (d.items.length && showPhotos) {
       const strip = el("div", { class: "diary-photos" });

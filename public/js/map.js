@@ -8,6 +8,7 @@ const MAP_HUE_OFFSETS = [0, 150, 62, 255, 100, 300, 200, 30]; // 테마 기준�
 function hexToHsl(hex) {
   const m = String(hex).trim().replace("#", "");
   const h6 = m.length === 3 ? m.split("").map((c) => c + c).join("") : m;
+  if (!/^[0-9a-fA-F]{6}$/.test(h6)) return { h: 224, s: 71, l: 55 }; // 기본 --brand(#1d4ed8) 기준 HSL
   const r = parseInt(h6.slice(0, 2), 16) / 255, g = parseInt(h6.slice(2, 4), 16) / 255, b = parseInt(h6.slice(4, 6), 16) / 255;
   const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
   let h = 0;
@@ -26,8 +27,8 @@ function mapColors() {
   let brand = "#1d4ed8";
   try { brand = getComputedStyle(document.documentElement).getPropertyValue("--brand").trim() || brand; } catch {}
   const base = hexToHsl(brand);
-  const S = Math.max(58, Math.min(74, base.s || 65));
-  const L = Math.max(44, Math.min(56, base.l || 50));
+  const S = Math.max(58, Math.min(74, Number.isFinite(base.s) ? base.s : 65));
+  const L = Math.max(44, Math.min(56, Number.isFinite(base.l) ? base.l : 50));
   return MAP_HUE_OFFSETS.map((off) => `hsl(${Math.round((base.h + off) % 360)}, ${S}%, ${L}%)`);
 }
 
@@ -99,9 +100,9 @@ function updateMap() {
   // 지역 추천 위치 핀 (추천 패널 열려 있을 때)
   if (recState) {
     const center = recCenterCache.get(state.destination);
-    if (center && center !== "pending") {
+    if (center && center !== "pending" && center.lat != null && center.lon != null) {
       const recs = nearbyCache.get(`${center.lat.toFixed(3)},${center.lon.toFixed(3)}|${recState}`);
-      if (Array.isArray(recs)) recs.slice(0, 10).forEach((r) => {
+      if (Array.isArray(recs)) recs.filter((r) => r.lat != null && r.lon != null).slice(0, 10).forEach((r) => {
         const isFocus = focusRec && focusRec.name === r.name && Math.abs(focusRec.lat - r.lat) < 1e-6;
         L.marker([r.lat, r.lon], { icon: recIcon(isFocus) }).bindPopup(`<b>${r.name}</b><br>${catKr(r.category)}`).addTo(mapMarkers);
       });

@@ -29,11 +29,11 @@ $("#nameInput").value = localStorage.getItem("tp_name") || "";
 
 // ── 테마 (색상 세트, 이 기기에 저장) ──
 const THEMES = [
-  { id: "ocean", name: "오션", dot: "#1f2e52" },
-  { id: "forest", name: "포레스트", dot: "#1f5138" },
-  { id: "rose", name: "로즈", dot: "#8f3b55" },
-  { id: "lavender", name: "라벤더", dot: "#463b7a" },
-  { id: "teal", name: "틸", dot: "#14636b" },
+  { id: "ocean", name: "오션", dot: "#1d4ed8" },
+  { id: "forest", name: "에메랄드", dot: "#047857" },
+  { id: "lavender", name: "바이올렛", dot: "#6d28d9" },
+  { id: "rose", name: "베리", dot: "#be185d" },
+  { id: "teal", name: "라군", dot: "#0e7490" },
 ];
 function currentTheme() { try { return localStorage.getItem("tp_theme") || "ocean"; } catch { return "ocean"; } }
 function renderThemeOptions() {

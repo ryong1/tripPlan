@@ -5,9 +5,9 @@
   --muted: #6a7890;
   --line: rgba(70, 100, 160, 0.18);
   --glass-edge: rgba(70, 100, 160, 0.18);
-  --brand: #1f2e52;
-  --brand-dark: #16213c;
-  --brand-soft: rgba(60, 110, 200, 0.12);
+  --brand: #1d4ed8;
+  --brand-dark: #1e40af;
+  --brand-soft: rgba(29, 78, 216, 0.13);
   --danger: #e5484d;
   --ok: #2f9e6f;
   --shadow: none;
@@ -25,7 +25,7 @@ body {
   color: var(--ink);
   -webkit-font-smoothing: antialiased;
   min-height: 100vh;
-  background: linear-gradient(165deg, #eef6fe 0%, #dcecfb 55%, #cfe4f8 100%) fixed;
+  background: linear-gradient(165deg, #f5f8ff 0%, #eaf1fe 100%) fixed;
 }
 .hidden { display: none !important; }
 button {
@@ -70,7 +70,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--brand); }
   align-items: center;
   justify-content: center;
   padding: 20px;
-  background: linear-gradient(165deg, #c7def6 0%, #9cc4ee 100%);
+  background: linear-gradient(165deg, #e4edff 0%, #d3e2fd 100%);
 }
 .landing-card {
   background: var(--card-strong);
@@ -606,18 +606,19 @@ input[type="date"] { width: 100%; min-width: 0; }
 .person-name { font-weight: 600; }
 
 /* ── 테마 (사용자 선택, 흰 표면 유지하고 브랜드색+배경만 교체) ── */
-html[data-theme="forest"]  { --brand: #1f5138; --brand-dark: #143726; --brand-soft: rgba(31, 120, 80, 0.13); }
-html[data-theme="forest"]  body    { background: linear-gradient(165deg, #eef7f0 0%, #dcefe2 55%, #cfe8d8 100%) fixed; }
-html[data-theme="forest"]  .landing{ background: linear-gradient(165deg, #c7e6d2 0%, #9cd0b0 100%); }
-html[data-theme="rose"]    { --brand: #8f3b55; --brand-dark: #6e2c41; --brand-soft: rgba(190, 80, 120, 0.13); }
-html[data-theme="rose"]    body    { background: linear-gradient(165deg, #fdeef3 0%, #f9dde7 55%, #f6cfdd 100%) fixed; }
-html[data-theme="rose"]    .landing{ background: linear-gradient(165deg, #f2c7d6 0%, #e79cbb 100%); }
-html[data-theme="lavender"]{ --brand: #463b7a; --brand-dark: #322a5c; --brand-soft: rgba(120, 90, 200, 0.13); }
-html[data-theme="lavender"]body    { background: linear-gradient(165deg, #f0eefe 0%, #e5e0fb 55%, #ddd8f5 100%) fixed; }
-html[data-theme="lavender"].landing{ background: linear-gradient(165deg, #d3cbf0 0%, #b0a6e6 100%); }
-html[data-theme="teal"]    { --brand: #14636b; --brand-dark: #0e4a50; --brand-soft: rgba(14, 150, 170, 0.13); }
-html[data-theme="teal"]    body    { background: linear-gradient(165deg, #eafafb 0%, #d6f0f3 55%, #cfeaef 100%) fixed; }
-html[data-theme="teal"]    .landing{ background: linear-gradient(165deg, #c7e9ee 0%, #9cd4dc 100%); }
+/* 팔레트: colorable WCAG AA 검증 (흰텍스트-온-brand·brandDark-온-흰 모두 4.5+) */
+html[data-theme="forest"]  { --brand: #047857; --brand-dark: #047857; --brand-soft: rgba(4, 120, 87, 0.13); }
+html[data-theme="forest"]  body    { background: linear-gradient(165deg, #f3fbf7 0%, #e6f6ee 100%) fixed; }
+html[data-theme="forest"]  .landing{ background: linear-gradient(165deg, #ddf3e8 0%, #c7ebd8 100%); }
+html[data-theme="lavender"]{ --brand: #6d28d9; --brand-dark: #6d28d9; --brand-soft: rgba(109, 40, 217, 0.13); }
+html[data-theme="lavender"]body    { background: linear-gradient(165deg, #f9f6ff 0%, #f1ebfe 100%) fixed; }
+html[data-theme="lavender"].landing{ background: linear-gradient(165deg, #efe7ff 0%, #e0d1fb 100%); }
+html[data-theme="rose"]    { --brand: #be185d; --brand-dark: #be185d; --brand-soft: rgba(190, 24, 93, 0.13); }
+html[data-theme="rose"]    body    { background: linear-gradient(165deg, #fff5f9 0%, #fdeaf2 100%) fixed; }
+html[data-theme="rose"]    .landing{ background: linear-gradient(165deg, #fde4ef 0%, #fbd0e2 100%); }
+html[data-theme="teal"]    { --brand: #0e7490; --brand-dark: #0e7490; --brand-soft: rgba(14, 116, 144, 0.13); }
+html[data-theme="teal"]    body    { background: linear-gradient(165deg, #f2fbfd 0%, #e4f5f9 100%) fixed; }
+html[data-theme="teal"]    .landing{ background: linear-gradient(165deg, #d9f1f6 0%, #c1e7ef 100%); }
 
 /* 테마 선택 UI */
 .theme-opts { display: flex; flex-wrap: wrap; gap: 14px; }

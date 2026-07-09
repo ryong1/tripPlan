@@ -900,3 +900,50 @@ button.tiny { min-height: 30px; }
 .h-i { font-size: 18px; margin: 3px 0; }
 .h-temp { font-size: 13px; font-weight: 700; color: var(--ink); }
 .h-pop { font-size: 10px; color: var(--brand-dark); margin-top: 2px; }
+
+/* ════════ Monad 리스킨 (warm parchment · editorial) ════════ */
+:root {
+  --card: #fffdfb; --card-strong: #fffdfb; --surface: #fffdfb;
+  --hover: #efeae6;
+  --ink: #242424; --muted: #797776;
+  --line: #e6e1db; --glass-edge: #d9d3cc;
+  --brand: #2b59d1; --brand-dark: #1f43a0; --brand-soft: rgba(43, 89, 209, 0.10);
+  --shadow: none; --shadow-lift: none;
+  --r: 20px;
+}
+body { background: linear-gradient(180deg, #f6f3f1 0%, #f1ede9 100%) fixed; }
+.landing { background: #ece7e2; }
+
+/* 에디토리얼 serif 제목 (weight 낮게, 자간 타이트) */
+.landing-card h1, h2.pane-title, .card-head h3, .rec-head h3, .modal-card h3, .day-date, .trip-title-input, .diary-cover-sub, .place-info-name {
+  font-family: "Noto Serif KR", serif; letter-spacing: -0.02em; }
+h2.pane-title { font-weight: 600; }
+.card-head h3, .rec-head h3, .modal-card h3, .place-info-name { font-weight: 600; }
+.landing-card h1 { font-weight: 600; }
+.trip-title-input { font-weight: 600; }
+.day-date { font-weight: 600; }
+
+/* 숫자·시간·금액은 모노(기술 문서 느낌) */
+.acc-time, .acc-time-input, .day-total, .summary-value, .cost-chip, .amt, .total-line, .budget-nums, .h-t, .h-temp, .recap-time, .wd-temp {
+  font-family: "Space Mono", "Noto Sans KR", monospace; }
+
+/* 라벨·탭·배지 자간(정갈한 UI 텍스트) */
+.tab, .field > label, .acc-field > label, .summary-label { letter-spacing: 0.03em; }
+
+/* 컨트롤 = pill */
+button, button.primary, button.tiny, button.ghost, .tab, .chip, .day-chip, .nearby-cat, .cost-chip,
+.today-badge, .assignee-tag, .diary-daynum, .link-chip, .person-swatch, .leg-add-btn, .map-day-btn,
+.itin-actions .act-ai, .itin-actions .act-soft, .itin-actions .act-line { border-radius: 999px; }
+input, select, textarea, .search-results, .cost-input { border-radius: 14px; }
+
+/* 카드 = 얇은 테두리 + 그림자 없음 + 넉넉한 여백 */
+.card, .day-card, .modal-card, .landing-card, .summary-header, .diary-entry, .rec-item, .weather-day, .hour-cell, .acc-body {
+  box-shadow: none !important; border-radius: 22px; }
+.card, .modal-card { border: 1px solid var(--glass-edge); }
+.card { padding: 22px 24px; }
+.card:hover, .summary-item:hover, .card:hover { transform: none; box-shadow: none !important; }
+
+/* 버튼 여백 넉넉 (pill) */
+button { padding: 10px 18px; }
+button.primary { padding: 11px 24px; }
+button.tiny { padding: 6px 14px; }

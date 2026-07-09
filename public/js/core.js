@@ -29,7 +29,7 @@ $("#nameInput").value = localStorage.getItem("tp_name") || "";
 
 // ── 테마 (색상 세트, 이 기기에 저장) ──
 const THEMES = [
-  { id: "ocean", name: "오션", dot: "#1d4ed8" },
+  { id: "ocean", name: "모나드", dot: "#2b59d1" },
   { id: "forest", name: "에메랄드", dot: "#047857" },
   { id: "lavender", name: "바이올렛", dot: "#6d28d9" },
   { id: "rose", name: "베리", dot: "#be185d" },

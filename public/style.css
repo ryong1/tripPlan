@@ -957,3 +957,18 @@ button.tiny { padding: 6px 14px; }
 .diary-photo:hover { transform: rotate(0deg) scale(1.05); z-index: 2; }
 .diary-photo .nc-thumb { border: 4px solid #fff; box-shadow: 0 2px 10px rgba(0,0,0,.14); border-radius: 4px; }
 .diary-cap { text-align: center; }
+
+/* ════ 폰트 전부 통일(Noto Sans) ════ */
+.landing-card h1, h2.pane-title, .card-head h3, .rec-head h3, .modal-card h3, .day-date, .trip-title-input,
+.diary-cover-sub, .place-info-name, .diary-title, .diary-kicker, .diary-intro, .diary-date, .diary-narr, .diary-cap, .diary-meta, .diary-daynum,
+.acc-time, .acc-time-input, .day-total, .summary-value, .cost-chip, .amt, .total-line, .budget-nums, .h-t, .h-temp, .recap-time, .wd-temp {
+  font-family: "Noto Sans KR", -apple-system, "Segoe UI", sans-serif !important;
+}
+
+/* ════ 배경 여행 일러스트 (은은하게) ════ */
+.bg-art { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; color: var(--brand); opacity: 0.05; pointer-events: none; }
+.app, .landing { position: relative; z-index: 1; }
+.landing { background: transparent; }  /* 랜딩에서도 배경 그림 보이도록 */
+
+/* 항목 상세 서브패널 왼쪽 테두리 제거 */
+.acc-body { border-left: none; padding-left: 14px; }

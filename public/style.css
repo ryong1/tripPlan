@@ -630,3 +630,75 @@ html[data-theme="teal"]    .landing{ background: linear-gradient(165deg, #d9f1f6
 .theme-opt.on .theme-opt-name { color: var(--brand-dark); }
 .landing-theme { border-top: 1px solid var(--line); padding-top: 16px; margin-top: 16px; }
 .landing-theme-label { font-size: 13px; color: var(--muted); font-weight: 600; margin-bottom: 12px; }
+
+/* ══ 모던 리프레시 (UX 워크플로 스펙 기반) ══ */
+:root {
+  --shadow: 0 1px 2px rgba(31, 42, 68, .05), 0 6px 18px -8px rgba(31, 42, 68, .16);
+  --shadow-lift: 0 4px 10px rgba(31, 42, 68, .08), 0 16px 34px -12px rgba(31, 42, 68, .22);
+}
+body { line-height: 1.55; letter-spacing: -0.01em; text-rendering: optimizeLegibility; }
+h2.pane-title { font-size: 25px; font-weight: 800; letter-spacing: -0.02em; margin: 0 0 14px; }
+.landing-card h1 { font-size: 30px; font-weight: 800; letter-spacing: -0.025em; }
+.card-head h3, .rec-head h3, .modal-card h3 { font-weight: 700; letter-spacing: -0.015em; }
+.card-head h3 { font-size: 16px; }
+.card-head { margin-bottom: 14px; }
+
+/* 카드: 소프트 섀도 + hover 리프트 */
+.card { padding: 20px 22px; transition: box-shadow .2s ease, transform .18s ease; }
+.card:hover { transform: translateY(-1px); box-shadow: var(--shadow-lift); }
+
+/* 통계 스탯 카드화 */
+.summary-header { background: transparent; border: none; padding: 0; box-shadow: none; gap: 12px; }
+.summary-item { background: var(--card); border: 1px solid var(--glass-edge); border-radius: var(--r); padding: 14px 16px; gap: 7px; box-shadow: var(--shadow); transition: transform .18s ease, box-shadow .18s ease; }
+.summary-item:hover { transform: translateY(-2px); box-shadow: var(--shadow-lift); }
+.summary-value { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; }
+
+/* 탭: 채운 라운드 탭 */
+.tabs { gap: 6px; padding: 8px 12px; align-items: center; }
+.tab { border-bottom: none; border-radius: var(--r); padding: 8px 16px; font-weight: 600; letter-spacing: -0.01em; transition: background .18s, color .18s; }
+.tab:hover { background: var(--brand-soft); color: var(--brand-dark); }
+.tab.active { background: var(--brand); color: #fff; font-weight: 700; border-bottom-color: transparent; box-shadow: var(--shadow); }
+.tab.active:hover { background: var(--brand-dark); color: #fff; }
+
+/* 선택형 칩 hover 피드백 */
+.chip, .day-chip, .nearby-cat { transition: background .15s, color .15s, border-color .15s; }
+.chip:hover, .day-chip:hover, .nearby-cat:hover { background: var(--brand-soft); color: var(--brand-dark); }
+
+/* 버튼 마이크로 인터랙션 */
+button.primary { box-shadow: var(--shadow); }
+button.primary:hover { background: var(--brand-dark); box-shadow: var(--shadow-lift); }
+
+/* 입력 포커스 링 */
+input, select, textarea { transition: border-color .15s ease, box-shadow .15s ease; }
+input:focus, select:focus, textarea:focus { box-shadow: 0 0 0 3px var(--brand-soft); }
+
+/* 라벨 캡션 시스템 */
+.field > label, .acc-field > label, .summary-label, .recent-label, .opt-label, .rec-detail-label, .member-colors-label, .landing-theme-label { letter-spacing: .03em; font-size: 11.5px; font-weight: 700; color: var(--muted); text-transform: uppercase; }
+
+/* 하루 카드 액센트 + 날짜/지출 배지 */
+.day-card { border-left: 3px solid var(--brand-soft); }
+.day-card.today { border: 1px solid var(--glass-edge); border-left: 3px solid var(--brand); }
+.day-date { background: var(--brand-soft); color: var(--brand-dark); padding: 4px 12px; border-radius: var(--r); font-size: 16px; }
+.day-total { background: var(--brand-soft); color: var(--brand-dark); padding: 3px 10px; border-radius: var(--r); }
+
+/* 타임라인 도트 링 + 숫자 정렬 */
+.tl-dot.geo { box-shadow: 0 0 0 3px var(--brand-soft); }
+.acc-time, .acc-time-input, .recap-time { font-variant-numeric: tabular-nums; }
+
+/* 상세 아코디언 = 카드 안 서브 패널 */
+.acc-body { background: var(--brand-soft); border-radius: var(--r); border-left: 3px solid var(--brand); padding: 12px 14px 14px 18px; margin: 2px 0 10px 6px; gap: 13px; }
+.acc-body input, .acc-body select, .acc-body textarea { background: #fff; }
+
+/* 구분선 톤다운 */
+.expense-row { padding: 12px 0; border-top-color: rgba(70, 100, 160, .10); }
+
+/* 배너·합계·토스트·모달 마감 */
+.recap-banner { border-left: 3px solid var(--brand); }
+.total-line, .budget-nums { font-variant-numeric: tabular-nums; }
+.toast { background: var(--brand-dark); box-shadow: var(--shadow-lift); }
+.modal-card { box-shadow: var(--shadow-lift); }
+
+/* 모바일: 인터랙션 톤다운(떨림 방지) */
+@media (max-width: 560px) {
+  .card:hover, .summary-item:hover, button:hover, button.primary:hover { transform: none; }
+}

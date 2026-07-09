@@ -386,3 +386,104 @@ function openLink(url) {
   window.open(u, "_blank", "noopener");
 }
 
+
+// ── 여행 요약(추억) 탭 ──
+function buildRecapText() {
+  const lines = [];
+  lines.push(`[${state.name}] 여행 요약`);
+  const range = state.startDate ? `${fmtDate(state.startDate)} ~ ${fmtDate(state.endDate)}` : "";
+  const head = [state.destination, range].filter(Boolean).join(" · ");
+  if (head) lines.push(head);
+  const members = state.members.length || 1;
+  const spent = state.expenses.reduce((s, e) => s + (Number(e.amount) || 0), 0) + tripSpent();
+  lines.push(`총 지출 ${won(spent)} (1인당 ${won(Math.round(spent / members))})`);
+  lines.push("");
+  state.itinerary.forEach((d, di) => {
+    lines.push(`● ${fmtDate(d.date) || (di + 1) + "일차"}`);
+    if (!d.items.length) { lines.push("  (일정 없음)"); return; }
+    d.items.forEach((it) => {
+      const parts = [];
+      if (it.time) parts.push(it.time);
+      parts.push((it.done ? "✓ " : "") + (it.place || "(제목 없음)"));
+      if (itemCost(it) > 0) parts.push(won(itemCost(it)));
+      lines.push("  - " + parts.join("  "));
+    });
+  });
+  return lines.join("\n");
+}
+
+async function shareRecap() {
+  const text = buildRecapText();
+  try { await navigator.clipboard.writeText(text); toast("여행 요약을 복사했어요 (카톡 등에 붙여넣기)"); }
+  catch { prompt("아래 내용을 복사하세요", text); }
+}
+
+function recapStat(label, value, cls) {
+  return el("div", { class: "summary-item" },
+    el("div", { class: "summary-label" }, label),
+    el("div", { class: "summary-value" + (cls ? " " + cls : "") }, value));
+}
+
+function renderRecap() {
+  const root = $("#tab-recap");
+  if (!root || !state) return;
+  root.innerHTML = "";
+  root.append(el("h2", { class: "pane-title" }, "여행 요약"));
+
+  const days = state.itinerary;
+  const placed = [];
+  days.forEach((d) => d.items.forEach((it) => placed.push(it)));
+
+  if (!placed.length) {
+    root.append(el("p", { class: "empty" }, "아직 담은 장소가 없어요. 일정을 채우면 여행이 끝난 뒤 이곳에서 돌아볼 수 있어요."));
+    return;
+  }
+
+  // 상태 배너
+  const today = todayISO();
+  if (state.endDate && today > state.endDate) {
+    root.append(el("div", { class: "recap-banner" }, "여행이 끝났어요! 이번 여행을 돌아볼까요?"));
+  } else if (state.startDate && today >= state.startDate) {
+    root.append(el("div", { class: "recap-banner" }, "여행 진행 중이에요. 지금까지의 기록이에요."));
+  }
+
+  // 통계
+  const members = state.members.length || 1;
+  const spent = state.expenses.reduce((s, e) => s + (Number(e.amount) || 0), 0) + tripSpent();
+  let km = 0;
+  for (const d of days) { const g = d.items.filter((it) => it.lat != null); for (let i = 0; i < g.length - 1; i++) km += haversineKm(g[i], g[i + 1]); }
+  const doneCount = placed.filter((it) => it.done).length;
+  root.append(el("div", { class: "summary-header" },
+    recapStat("총 지출", won(spent)),
+    recapStat("1인당", won(Math.round(spent / members))),
+    recapStat("다녀온 곳", `${doneCount}/${placed.length}곳`),
+    recapStat("총 이동", km > 0 ? `약 ${Math.round(km)}km` : "—", "muted")));
+
+  // 날짜별 코스
+  days.forEach((d, di) => {
+    const card = el("div", { class: "card day-card" });
+    const head = el("div", { class: "day-head" }, el("div", { class: "day-date" }, fmtDate(d.date) || `${di + 1}일차`));
+    if (dayCost(d) > 0) head.append(el("span", { class: "day-spend" }, "지출 " + won(dayCost(d))));
+    card.append(head);
+    if (!d.items.length) card.append(el("p", { class: "recap-empty" }, "일정 없음"));
+    else d.items.forEach((it) => card.append(el("div", { class: "recap-row" + (it.done ? " done" : "") },
+      el("span", { class: "recap-time" }, it.time || "—"),
+      el("span", { class: "recap-place" }, (it.done ? "✓ " : "") + (it.place || "(제목 없음)")),
+      ...(itemCost(it) > 0 ? [el("span", { class: "recap-cost" }, won(itemCost(it)))] : []))));
+    root.append(card);
+  });
+
+  // 사진 모아보기 (탭이 활성일 때만 이미지 로드 — 요청 절약)
+  const geoItems = placed.filter((it) => it.lat != null && it.place);
+  if (geoItems.length && root.classList.contains("active")) {
+    const grid = el("div", { class: "recap-photos" });
+    geoItems.slice(0, 24).forEach((it) => {
+      const thumb = thumbEl({ name: it.place, lat: it.lat, lon: it.lon, category: "attraction", addr: it.addr });
+      grid.append(el("div", { class: "recap-photo" }, thumb, el("div", { class: "recap-photo-name" }, it.place)));
+    });
+    root.append(el("div", { class: "card" }, el("div", { class: "card-head" }, el("h3", {}, "사진 모아보기")), grid));
+  }
+
+  // 공유
+  root.append(el("button", { class: "primary", style: "width:100%;margin-top:6px", onclick: shareRecap }, "여행 요약 복사 (카톡용)"));
+}

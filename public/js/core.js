@@ -209,6 +209,8 @@ document.querySelectorAll(".tab").forEach((btn) => {
     btn.classList.add("active");
     $("#tab-" + btn.dataset.tab).classList.add("active");
     if (btn.dataset.tab === "plan") showMap();
+    if (btn.dataset.tab === "recap") renderRecap(); // 사진 등 무거운 부분은 탭 열 때 로드
+
   });
 });
 
@@ -314,5 +316,6 @@ function render() {
   renderItinerary();
   renderExpenses();
   renderPacking();
+  renderRecap();
   if ($("#tab-plan").classList.contains("active")) { if (!map) showMap(); else updateMap(); }
 }

@@ -567,3 +567,20 @@ input[type="date"] { width: 100%; min-width: 0; }
 .cost-input { display: flex; align-items: center; gap: 8px; }
 .cost-input input { flex: 1; }
 .cost-won { color: var(--muted); font-size: 14px; }
+
+/* ── 여행 요약(추억) 탭 ── */
+.recap-banner { background: var(--brand-soft); color: var(--brand-dark); border-radius: 12px; padding: 12px 14px; font-weight: 700; margin-bottom: 14px; }
+.recap-row { display: flex; align-items: center; gap: 10px; padding: 8px 2px; border-top: 1px solid var(--line); }
+.recap-row:first-of-type { border-top: none; }
+.recap-time { font-variant-numeric: tabular-nums; color: var(--brand-dark); font-weight: 700; font-size: 13px; min-width: 62px; flex: none; }
+.recap-place { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.recap-cost { color: var(--brand-dark); font-weight: 700; font-size: 13px; white-space: nowrap; flex: none; }
+.recap-row.done .recap-place { color: var(--muted); }
+.recap-empty { color: var(--muted); font-size: 14px; padding: 4px 2px; }
+.recap-photos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.recap-photo .nc-thumb { width: 100%; height: 92px; border-radius: 10px; }
+.recap-photo-name { font-size: 12px; color: var(--ink); margin-top: 5px; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 560px) {
+  .recap-photos { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .recap-photo .nc-thumb { height: 84px; }
+}

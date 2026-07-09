@@ -34,6 +34,7 @@ const THEMES = [
   { id: "lavender", name: "바이올렛", dot: "#6d28d9" },
   { id: "rose", name: "베리", dot: "#be185d" },
   { id: "teal", name: "라군", dot: "#0e7490" },
+  { id: "dark", name: "다크", dot: "#1b2333" },
 ];
 function currentTheme() { try { return localStorage.getItem("tp_theme") || "ocean"; } catch { return "ocean"; } }
 function renderThemeOptions() {

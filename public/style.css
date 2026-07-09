@@ -8,6 +8,8 @@
   --brand: #1d4ed8;
   --brand-dark: #1e40af;
   --brand-soft: rgba(29, 78, 216, 0.13);
+  --accent: #6d28d9;
+  --accent-soft: rgba(109, 40, 217, 0.13);
   --danger: #e5484d;
   --ok: #2f9e6f;
   --shadow: none;
@@ -607,16 +609,16 @@ input[type="date"] { width: 100%; min-width: 0; }
 
 /* ── 테마 (사용자 선택, 흰 표면 유지하고 브랜드색+배경만 교체) ── */
 /* 팔레트: colorable WCAG AA 검증 (흰텍스트-온-brand·brandDark-온-흰 모두 4.5+) */
-html[data-theme="forest"]  { --brand: #047857; --brand-dark: #047857; --brand-soft: rgba(4, 120, 87, 0.13); }
+html[data-theme="forest"]  { --brand: #047857; --brand-dark: #047857; --brand-soft: rgba(4, 120, 87, 0.13); --accent: #0e7490; --accent-soft: rgba(14, 116, 144, 0.13); }
 html[data-theme="forest"]  body    { background: linear-gradient(165deg, #f3fbf7 0%, #e6f6ee 100%) fixed; }
 html[data-theme="forest"]  .landing{ background: linear-gradient(165deg, #ddf3e8 0%, #c7ebd8 100%); }
-html[data-theme="lavender"]{ --brand: #6d28d9; --brand-dark: #6d28d9; --brand-soft: rgba(109, 40, 217, 0.13); }
+html[data-theme="lavender"]{ --brand: #6d28d9; --brand-dark: #6d28d9; --brand-soft: rgba(109, 40, 217, 0.13); --accent: #be185d; --accent-soft: rgba(190, 24, 93, 0.13); }
 html[data-theme="lavender"]body    { background: linear-gradient(165deg, #f9f6ff 0%, #f1ebfe 100%) fixed; }
 html[data-theme="lavender"].landing{ background: linear-gradient(165deg, #efe7ff 0%, #e0d1fb 100%); }
-html[data-theme="rose"]    { --brand: #be185d; --brand-dark: #be185d; --brand-soft: rgba(190, 24, 93, 0.13); }
+html[data-theme="rose"]    { --brand: #be185d; --brand-dark: #be185d; --brand-soft: rgba(190, 24, 93, 0.13); --accent: #6d28d9; --accent-soft: rgba(109, 40, 217, 0.13); }
 html[data-theme="rose"]    body    { background: linear-gradient(165deg, #fff5f9 0%, #fdeaf2 100%) fixed; }
 html[data-theme="rose"]    .landing{ background: linear-gradient(165deg, #fde4ef 0%, #fbd0e2 100%); }
-html[data-theme="teal"]    { --brand: #0e7490; --brand-dark: #0e7490; --brand-soft: rgba(14, 116, 144, 0.13); }
+html[data-theme="teal"]    { --brand: #0e7490; --brand-dark: #0e7490; --brand-soft: rgba(14, 116, 144, 0.13); --accent: #1d4ed8; --accent-soft: rgba(29, 78, 216, 0.13); }
 html[data-theme="teal"]    body    { background: linear-gradient(165deg, #f2fbfd 0%, #e4f5f9 100%) fixed; }
 html[data-theme="teal"]    .landing{ background: linear-gradient(165deg, #d9f1f6 0%, #c1e7ef 100%); }
 
@@ -702,3 +704,10 @@ input:focus, select:focus, textarea:focus { box-shadow: 0 0 0 3px var(--brand-so
 @media (max-width: 560px) {
   .card:hover, .summary-item:hover, button:hover, button.primary:hover { transform: none; }
 }
+
+/* ══ 테마 서브(액센트) 색 = 정보 배지·타임라인·링크 (메인+서브 투톤) ══ */
+.day-date { background: var(--accent-soft); color: var(--accent); }
+.day-total { background: var(--accent-soft); color: var(--accent); }
+.tl-dot.geo { background: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.link-chip { color: var(--accent); border-color: var(--accent-soft); }
+.day-spend { color: var(--accent); }

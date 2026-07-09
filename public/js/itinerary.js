@@ -56,6 +56,50 @@ function loadWeather() {
     }).catch(() => {});
 }
 
+// ── 시간별 날씨 (준비물 탭 '시간별' 펼치기) ──
+let hourlyByDate = {};       // date -> [{hh,code,temp,pop}] | "pending" | null
+let weatherOpenDate = null;  // 펼쳐진 날짜
+function shiftYearISO(iso, delta) {
+  const y = parseInt(iso.slice(0, 4), 10) + delta;
+  let md = iso.slice(4);
+  const isLeap = (yy) => (yy % 4 === 0 && yy % 100 !== 0) || yy % 400 === 0;
+  if (md === "-02-29" && !isLeap(y)) md = "-02-28";
+  return y + md;
+}
+function weatherLatLon() {
+  for (const d of state.itinerary) for (const it of d.items) if (it.lat != null) return { lat: it.lat, lon: it.lon };
+  const c = recCenterCache.get(state.destination);
+  return (c && c !== "pending") ? c : null;
+}
+function packHourly(H) {
+  const out = [];
+  (H.time || []).forEach((t, i) => {
+    const hh = Number(t.slice(11, 13));
+    if (hh % 3 === 0) out.push({ hh, code: H.weather_code[i], temp: H.temperature_2m[i], pop: H.precipitation_probability ? H.precipitation_probability[i] : null });
+  });
+  return out;
+}
+function loadHourly(date) {
+  if (hourlyByDate[date] !== undefined) return;
+  const ll = weatherLatLon();
+  if (!ll) { hourlyByDate[date] = null; return; }
+  hourlyByDate[date] = "pending";
+  const q = "hourly=temperature_2m,weather_code,precipitation_probability&timezone=auto";
+  fetch(`https://api.open-meteo.com/v1/forecast?latitude=${ll.lat}&longitude=${ll.lon}&${q}&start_date=${date}&end_date=${date}`)
+    .then((r) => r.json()).then((d) => {
+      if (d.hourly && d.hourly.time && d.hourly.temperature_2m.some((v) => v != null)) { hourlyByDate[date] = packHourly(d.hourly); renderPacking(); return; }
+      const ly = shiftYearISO(date, -1);
+      fetch(`https://archive-api.open-meteo.com/v1/archive?latitude=${ll.lat}&longitude=${ll.lon}&${q}&start_date=${ly}&end_date=${ly}`)
+        .then((r) => r.json()).then((a) => { hourlyByDate[date] = (a.hourly && a.hourly.time) ? packHourly(a.hourly) : null; renderPacking(); })
+        .catch(() => { hourlyByDate[date] = null; renderPacking(); });
+    }).catch(() => { hourlyByDate[date] = null; renderPacking(); });
+}
+function toggleWeatherDay(date) {
+  weatherOpenDate = (weatherOpenDate === date) ? null : date;
+  if (weatherOpenDate) loadHourly(weatherOpenDate);
+  renderPacking();
+}
+
 // 이미 담아둔 장소들을 최적 동선으로 날짜에 재배치 (항목 데이터는 보존)
 function optimizeRoute() {
   const days = state.itinerary;

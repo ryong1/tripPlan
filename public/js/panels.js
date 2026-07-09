@@ -321,14 +321,30 @@ function renderPacking() {
         el("h3", {}, `${state.destination || "여행지"} 날씨`),
         el("span", { style: "font-size:12px;color:var(--muted)" }, weatherNormal ? "예년 기준" : "예보")));
       const row = el("div", { class: "weather-days" });
+      const openDate = (typeof weatherOpenDate !== "undefined") ? weatherOpenDate : null;
       wdays.forEach((d) => {
         const w = weatherByDate[d.date];
-        row.append(el("div", { class: "weather-day" },
+        const open = openDate === d.date;
+        row.append(el("button", { class: "weather-day" + (open ? " open" : ""), onclick: () => toggleWeatherDay(d.date) },
           el("div", { class: "wd-date" }, fmtDate(d.date) || ""),
           el("div", { class: "wd-icon" }, wmoIcon(w.code)),
-          el("div", { class: "wd-temp" }, w.tmax != null ? `${Math.round(w.tmax)}° / ${Math.round(w.tmin)}°` : "—")));
+          el("div", { class: "wd-temp" }, w.tmax != null ? `${Math.round(w.tmax)}° / ${Math.round(w.tmin)}°` : "—"),
+          el("div", { class: "wd-more" }, open ? "접기 ▲" : "시간별 ▼")));
       });
       wc.append(row);
+      // 시간별 상세 (펼친 날짜)
+      if (openDate) {
+        const hh = hourlyByDate[openDate];
+        const box = el("div", { class: "hourly" });
+        if (hh === "pending" || hh === undefined) box.append(el("div", { class: "search-hint" }, "시간별 날씨 불러오는 중…"));
+        else if (!hh || !hh.length) box.append(el("div", { class: "search-hint" }, "시간별 정보가 없어요."));
+        else hh.forEach((x) => box.append(el("div", { class: "hour-cell" },
+          el("div", { class: "h-t" }, `${x.hh}시`),
+          el("div", { class: "h-i" }, wmoIcon(x.code)),
+          el("div", { class: "h-temp" }, x.temp != null ? `${Math.round(x.temp)}°` : "—"),
+          ...(x.pop != null ? [el("div", { class: "h-pop" }, `☔${x.pop}%`)] : []))));
+        wc.append(box);
+      }
       root.append(wc);
     }
   }

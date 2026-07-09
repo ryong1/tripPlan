@@ -232,13 +232,17 @@ function memberColor(name) {
 }
 function personDot(name) { return el("span", { class: "person-dot", style: `background:${memberColor(name)}` }); }
 
+let onlineNames = [];
 socket.on("presence", ({ online, people }) => {
   const ppl = people || [];
+  onlineNames = ppl.map((p) => p.name);
   const box = $("#presence");
   box.innerHTML = "";
-  if (!ppl.length) { box.textContent = `● ${online}명 접속`; return; }
-  ppl.forEach((p) => box.append(el("span", { class: "pres-person" + (p.editing ? " editing" : "") },
+  if (!ppl.length) { box.textContent = `● ${online}명 접속`; }
+  else ppl.forEach((p) => box.append(el("span", { class: "pres-person" + (p.editing ? " editing" : "") },
     personDot(p.name), (p.name || "") + (p.editing ? " ✎" : ""))));
+  // 경비정산 탭이 열려 있으면 '함께하는 사람' 접속 상태 갱신
+  if (typeof renderExpenses === "function" && $("#tab-expenses").classList.contains("active")) renderExpenses();
 });
 
 // 공유 모달의 멤버 색상 편집 (스와치 클릭 시 다음 색으로 순환)

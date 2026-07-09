@@ -972,3 +972,10 @@ button.tiny { padding: 6px 14px; }
 
 /* 항목 상세 서브패널 왼쪽 테두리 제거 */
 .acc-body { border-left: none; padding-left: 14px; }
+
+/* 함께하는 사람 로스터 */
+.member-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line); }
+.member-row:first-of-type { border-top: none; }
+.member-name { font-weight: 700; }
+.member-on { font-size: 12px; color: var(--ok); font-weight: 600; }
+.member-stat { margin-left: auto; font-size: 13px; color: var(--muted); }

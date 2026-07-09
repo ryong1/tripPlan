@@ -167,6 +167,24 @@ function renderExpenses() {
   root.append(el("h2", { class: "pane-title" }, "경비정산"));
 
   const members = state.members.length ? state.members : [me];
+
+  // 함께하는 사람
+  const online = (typeof onlineNames !== "undefined") ? onlineNames : [];
+  const roster = el("div", { class: "card" });
+  roster.append(el("div", { class: "card-head" },
+    el("h3", {}, "함께하는 사람"),
+    el("span", { style: "font-size:12px;color:var(--muted)" }, `${members.length}명`)));
+  members.forEach((m) => {
+    const paid = state.expenses.filter((e) => e.payer === m).reduce((s, e) => s + (Number(e.amount) || 0), 0);
+    const packs = state.packing.filter((p) => p.assignee === m).length;
+    roster.append(el("div", { class: "member-row" },
+      el("span", { class: "person-dot", style: `background:${memberColor(m)}` }),
+      el("span", { class: "member-name" }, m),
+      ...(online.includes(m) ? [el("span", { class: "member-on" }, "● 접속 중")] : []),
+      el("span", { class: "member-stat" }, `낸 돈 ${won(paid)} · 준비물 ${packs}`)));
+  });
+  root.append(roster);
+
   const descI = el("input", { type: "text", placeholder: "내역" });
   const amtI = el("input", { type: "number", placeholder: "금액", min: "0" });
   const payerSel = el("select", {}, ...members.map((m) => el("option", { value: m }, m)));

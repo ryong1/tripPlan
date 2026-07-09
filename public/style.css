@@ -640,6 +640,23 @@ html[data-theme="dark"] .landing{ background: linear-gradient(165deg, #0f1526 0%
 html[data-theme="dark"] input::placeholder, html[data-theme="dark"] textarea::placeholder { color: #6b7793; }
 html[data-theme="dark"] button.primary:hover { background: #1d4ed8; color: #fff; }
 
+/* 사용자 지정 텍스트/배경 쌍 테마 (앞=텍스트, 뒤=배경) */
+html[data-theme="watermelon"] { --brand: #a62c65; --brand-dark: #8a2453; --brand-soft: rgba(166, 44, 101, 0.14); --ink: #a62c65; }
+html[data-theme="watermelon"] body    { background: linear-gradient(165deg, #5cd79d 0%, #46cf90 100%) fixed; }
+html[data-theme="watermelon"] .landing{ background: linear-gradient(165deg, #46cf90 0%, #33c483 100%); }
+html[data-theme="beach"]      { --brand: #663c2b; --brand-dark: #4f2e20; --brand-soft: rgba(102, 60, 43, 0.14); --ink: #663c2b; }
+html[data-theme="beach"]      body    { background: linear-gradient(165deg, #9cc6d7 0%, #83b8cd 100%) fixed; }
+html[data-theme="beach"]      .landing{ background: linear-gradient(165deg, #83b8cd 0%, #6aaac2 100%); }
+html[data-theme="grape"]      { --brand: #035500; --brand-dark: #023f00; --brand-soft: rgba(3, 85, 0, 0.14); --ink: #035500; }
+html[data-theme="grape"]      body    { background: linear-gradient(165deg, #b875f7 0%, #a95cf5 100%) fixed; }
+html[data-theme="grape"]      .landing{ background: linear-gradient(165deg, #a95cf5 0%, #9a44f2 100%); }
+html[data-theme="cream"]      { --brand: #0f1342; --brand-dark: #0a0d30; --brand-soft: rgba(15, 19, 66, 0.13); --ink: #0f1342; }
+html[data-theme="cream"]      body    { background: linear-gradient(165deg, #f4eec0 0%, #ede4a5 100%) fixed; }
+html[data-theme="cream"]      .landing{ background: linear-gradient(165deg, #ede4a5 0%, #e5d98a 100%); }
+html[data-theme="sunset"]     { --brand: #085571; --brand-dark: #063e53; --brand-soft: rgba(8, 85, 113, 0.14); --ink: #085571; }
+html[data-theme="sunset"]     body    { background: linear-gradient(165deg, #fead91 0%, #fd9773 100%) fixed; }
+html[data-theme="sunset"]     .landing{ background: linear-gradient(165deg, #fd9773 0%, #fb8055 100%); }
+
 /* 테마 선택 UI */
 .theme-opts { display: flex; flex-wrap: wrap; gap: 14px; }
 .theme-opt { display: flex; flex-direction: column; align-items: center; gap: 6px; border: none; background: transparent; padding: 2px; cursor: pointer; }

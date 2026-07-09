@@ -35,6 +35,11 @@ const THEMES = [
   { id: "rose", name: "베리", dot: "#be185d" },
   { id: "teal", name: "라군", dot: "#0e7490" },
   { id: "dark", name: "다크", dot: "#1b2333" },
+  { id: "watermelon", name: "수박", dot: "linear-gradient(135deg,#a62c65 50%,#5cd79d 50%)" },
+  { id: "beach", name: "해변", dot: "linear-gradient(135deg,#663c2b 50%,#9cc6d7 50%)" },
+  { id: "grape", name: "포도", dot: "linear-gradient(135deg,#035500 50%,#b875f7 50%)" },
+  { id: "cream", name: "크림", dot: "linear-gradient(135deg,#0f1342 50%,#f4eec0 50%)" },
+  { id: "sunset", name: "노을", dot: "linear-gradient(135deg,#085571 50%,#fead91 50%)" },
 ];
 function currentTheme() { try { return localStorage.getItem("tp_theme") || "ocean"; } catch { return "ocean"; } }
 function renderThemeOptions() {

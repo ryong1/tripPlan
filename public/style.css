@@ -768,6 +768,6 @@ input:focus, select:focus, textarea:focus { box-shadow: 0 0 0 3px var(--brand-so
 .summary-item { background: transparent; border: none; padding: 0; box-shadow: none; }
 .summary-item:hover { transform: none; box-shadow: none; }
 .itin-actions .act-ai, .itin-actions .act-soft, .itin-actions .act-line {
-  background: var(--surface); color: var(--brand-dark); border: 1.5px solid var(--brand); }
+  background: var(--brand-soft); color: var(--brand-dark); border: 1.5px solid var(--brand); }
 .itin-actions .act-ai:hover, .itin-actions .act-soft:hover, .itin-actions .act-line:hover {
-  background: var(--brand-soft); color: var(--brand-dark); }
+  background: var(--brand); color: #fff; }

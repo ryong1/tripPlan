@@ -847,3 +847,13 @@ h2.pane-title { font-size: 27px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--brand-soft); border-radius: 999px; border: 2px solid transparent; background-clip: padding-box; }
 ::-webkit-scrollbar-thumb:hover { background: var(--brand); background-clip: padding-box; }
+
+/* ══ 여행 일기 카드 리디자인 ══ */
+.diary-entry { position: relative; overflow: hidden; padding: 18px 20px 18px 22px; margin-bottom: 16px; border-left: none; }
+.diary-entry::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: var(--brand); }
+.diary-dayline { margin-bottom: 10px; }
+.diary-daynum { font-family: "Kirang Haerang", "Noto Sans KR", sans-serif; font-size: 18px; font-weight: 400; padding: 1px 14px; letter-spacing: .5px; }
+.diary-date { font-size: 15px; }
+.diary-narr { background: var(--brand-soft); border-radius: var(--r); padding: 12px 15px; margin: 4px 0 13px; font-size: 15px; line-height: 1.85; color: var(--ink); }
+.diary-photo .nc-thumb { border-radius: var(--r); box-shadow: var(--shadow); }
+.diary-meta { padding-top: 4px; border-top: 1px dashed var(--line); }

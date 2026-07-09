@@ -99,7 +99,7 @@ function wikiKey(rec) {
   const title = p.length > 1 ? p.slice(1).join(":") : p[0];
   return { lang, title, key: `${lang}:${title}` };
 }
-const geoImgKey = (rec) => `geo:${rec.lat.toFixed(4)},${rec.lon.toFixed(4)}`;
+const geoImgKey = (rec) => (rec.lat != null && rec.lon != null) ? `geo:${rec.lat.toFixed(4)},${rec.lon.toFixed(4)}` : "geo:none";
 const kakaoImgKey = (rec) => `kakao:${(state && state.destination) || ""}:${rec.name}`;
 function cachedRecImage(rec) {
   if (rec.image && /^https?:\/\//i.test(rec.image)) return rec.image;

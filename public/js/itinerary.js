@@ -504,7 +504,7 @@ function renderRecap() {
     entry.append(el("p", { class: "diary-narr" }, dayNarrative(d) || "이 날은 아직 비어 있어요."));
     if (d.items.length && showPhotos) {
       const strip = el("div", { class: "diary-photos" });
-      d.items.filter((it) => it.place).slice(0, 10).forEach((it) => {
+      d.items.filter((it) => it.place && it.lat != null).slice(0, 10).forEach((it) => {
         const thumb = thumbEl({ name: it.place, lat: it.lat, lon: it.lon, category: "attraction", addr: it.addr });
         strip.append(el("div", { class: "diary-photo" }, thumb, el("div", { class: "diary-cap" }, (it.done ? "✓ " : "") + it.place)));
       });

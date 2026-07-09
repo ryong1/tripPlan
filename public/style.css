@@ -901,19 +901,7 @@ button.tiny { min-height: 30px; }
 .h-temp { font-size: 13px; font-weight: 700; color: var(--ink); }
 .h-pop { font-size: 10px; color: var(--brand-dark); margin-top: 2px; }
 
-/* ════════ Monad 리스킨 (warm parchment · editorial) ════════ */
-:root {
-  --card: #fffdfb; --card-strong: #fffdfb; --surface: #fffdfb;
-  --hover: #efeae6;
-  --ink: #242424; --muted: #797776;
-  --line: #e6e1db; --glass-edge: #d9d3cc;
-  --brand: #2b59d1; --brand-dark: #1f43a0; --brand-soft: rgba(43, 89, 209, 0.10);
-  --shadow: none; --shadow-lift: none;
-  --r: 20px;
-}
-body { background: linear-gradient(180deg, #f6f3f1 0%, #f1ede9 100%) fixed; }
-.landing { background: #ece7e2; }
-
+/* ════════ 구조/UI 리스킨 (에디토리얼·얇은테두리·pill) — 색상은 테마 유지 ════════ */
 /* 에디토리얼 serif 제목 (weight 낮게, 자간 타이트) */
 .landing-card h1, h2.pane-title, .card-head h3, .rec-head h3, .modal-card h3, .day-date, .trip-title-input, .diary-cover-sub, .place-info-name {
   font-family: "Noto Serif KR", serif; letter-spacing: -0.02em; }
@@ -936,14 +924,36 @@ button, button.primary, button.tiny, button.ghost, .tab, .chip, .day-chip, .near
 .itin-actions .act-ai, .itin-actions .act-soft, .itin-actions .act-line { border-radius: 999px; }
 input, select, textarea, .search-results, .cost-input { border-radius: 14px; }
 
-/* 카드 = 얇은 테두리 + 그림자 없음 + 넉넉한 여백 */
+/* 카드 = 얇은 테두리 + 은은한 그림자 + 넉넉한 여백 */
 .card, .day-card, .modal-card, .landing-card, .summary-header, .diary-entry, .rec-item, .weather-day, .hour-cell, .acc-body {
-  box-shadow: none !important; border-radius: 22px; }
-.card, .modal-card { border: 1px solid var(--glass-edge); }
-.card { padding: 22px 24px; }
-.card:hover, .summary-item:hover, .card:hover { transform: none; box-shadow: none !important; }
+  border-radius: 14px; }
+.card, .modal-card, .landing-card { border: 1px solid var(--glass-edge); }
+.card { padding: 20px 22px; }
 
 /* 버튼 여백 넉넉 (pill) */
 button { padding: 10px 18px; }
 button.primary { padding: 11px 24px; }
 button.tiny { padding: 6px 14px; }
+
+/* ════ 글꼴 통일(일기 Kirang 제거) · 탭 재디자인 · 폴라로이드 효과 ════ */
+/* 일기 글꼴을 앱과 통일: 제목=Noto Serif, 본문=Noto Sans */
+.diary-title { font-family: "Noto Serif KR", serif; font-weight: 600; letter-spacing: -.02em; }
+.diary-kicker, .diary-intro, .diary-daynum, .diary-date, .diary-narr, .diary-cap, .diary-meta {
+  font-family: "Noto Sans KR", sans-serif; }
+
+/* 탭 재디자인: 둥근 밑줄 인디케이터 */
+.tabs { border-bottom: 1px solid var(--line); gap: 2px; padding: 0 14px; }
+.tab { padding: 14px 16px; border-bottom: none; opacity: 1; color: var(--muted); position: relative; font-weight: 600; }
+.tab:hover { color: var(--ink); background: transparent; }
+.tab.active { color: var(--brand); font-weight: 700; }
+.tab.active::after { content: ""; position: absolute; left: 14px; right: 14px; bottom: -1px; height: 3px; background: var(--brand); border-radius: 999px; }
+
+/* 폴라로이드 틸트 사진 (일기) */
+.diary-photos { padding: 10px 2px 6px; }
+.diary-photo { transition: transform .18s ease; }
+.diary-photo:nth-child(3n+1) { transform: rotate(-2.5deg); }
+.diary-photo:nth-child(3n+2) { transform: rotate(1.8deg); }
+.diary-photo:nth-child(3n) { transform: rotate(3deg); }
+.diary-photo:hover { transform: rotate(0deg) scale(1.05); z-index: 2; }
+.diary-photo .nc-thumb { border: 4px solid #fff; box-shadow: 0 2px 10px rgba(0,0,0,.14); border-radius: 4px; }
+.diary-cap { text-align: center; }

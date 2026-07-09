@@ -174,6 +174,28 @@ function applyAction(trip, action, user) {
     case "updateMeta":
       if (payload.destination !== undefined) trip.destination = String(payload.destination).slice(0, 100);
       break;
+    case "updateDates": {
+      const iso = /^\d{4}-\d{2}-\d{2}$/;
+      const sd = iso.test(String(payload.startDate)) ? payload.startDate : trip.startDate;
+      const ed = iso.test(String(payload.endDate)) ? payload.endDate : sd;
+      const newDays = genDays(sd, ed);
+      if (!newDays.length) break;
+      // 날짜가 같은 날은 기존 항목을 그대로 이어받고, 사라진 날의 항목은 첫날로 모음
+      const oldByDate = {};
+      for (const d of trip.itinerary) oldByDate[d.date] = d;
+      const carried = new Set();
+      for (const nd of newDays) {
+        const od = oldByDate[nd.date];
+        if (od) { nd.items = od.items; carried.add(od.id); }
+      }
+      const leftover = [];
+      for (const d of trip.itinerary) if (!carried.has(d.id)) leftover.push(...d.items);
+      if (leftover.length) newDays[0].items.push(...leftover);
+      trip.startDate = sd;
+      trip.endDate = ed;
+      trip.itinerary = newDays;
+      break;
+    }
     case "reorderDay": {
       const d = trip.itinerary.find((x) => x.id === payload.dayId);
       if (d && Array.isArray(payload.orderedIds)) {

@@ -286,16 +286,24 @@ function openTripEdit() {
   if (!state) return;
   const nameI = el("input", { type: "text", value: state.name || "", maxlength: "100" });
   const destI = el("input", { type: "text", value: state.destination || "", maxlength: "100" });
+  const startI = el("input", { type: "date", value: state.startDate || "" });
+  const endI = el("input", { type: "date", value: state.endDate || "" });
   const modal = el("div", { class: "modal auto-modal" },
     el("div", { class: "modal-card" },
       el("h3", {}, "여행 정보 수정"),
       el("div", { class: "field" }, el("label", {}, "여행 이름"), nameI),
       el("div", { class: "field" }, el("label", {}, "목적지"), destI),
+      el("div", { class: "row" },
+        el("div", { class: "field", style: "flex:1" }, el("label", {}, "출발일"), startI),
+        el("div", { class: "field", style: "flex:1" }, el("label", {}, "도착일"), endI)),
+      el("p", { class: "sub", style: "margin:-4px 0 4px;font-size:12.5px" }, "날짜를 바꾸면 해당 날짜의 일정은 유지되고, 사라진 날의 항목은 첫날로 모여요."),
       el("div", { class: "modal-actions" },
         el("button", { class: "primary", onclick: () => {
           const nm = nameI.value.trim(), ds = destI.value.trim();
           if (nm && nm !== state.name) send("renameTrip", { name: nm });
           if (ds !== (state.destination || "")) send("updateMeta", { destination: ds });
+          const sd = startI.value, ed = endI.value || startI.value;
+          if (sd && (sd !== state.startDate || ed !== state.endDate)) send("updateDates", { startDate: sd, endDate: ed });
           modal.remove();
         } }, "저장"),
         el("button", { class: "ghost close-modal", onclick: () => modal.remove() }, "취소"))));

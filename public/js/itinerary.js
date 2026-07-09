@@ -348,15 +348,6 @@ function renderItinerary() {
     const t = root.querySelector(".day-card.today");
     if (t) { scrolledToday = true; requestAnimationFrame(() => t.scrollIntoView({ behavior: "smooth", block: "start" })); }
   }
-
-  const dateInput = el("input", { type: "date" });
-  root.append(el("div", { class: "card section-add" },
-    el("div", { class: "row" }, dateInput,
-      el("button", { class: "tiny", onclick: () => {
-        if (!dateInput.value) return;
-        send("addDay", { date: dateInput.value });
-      } }, "+ 날짜 추가"))
-  ));
 }
 
 function renderDay(day) {

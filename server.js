@@ -136,6 +136,7 @@ function newTrip(opts = {}) {
     packing: [],
     members: [],
     budget: 0,
+    memberColors: {},
   };
 }
 
@@ -163,6 +164,12 @@ function applyAction(trip, action, user) {
       break;
     case "setBudget":
       trip.budget = Math.max(0, Number(payload.amount) || 0);
+      break;
+    case "setMemberColor":
+      if (typeof payload.name === "string") {
+        if (!trip.memberColors || typeof trip.memberColors !== "object") trip.memberColors = {};
+        trip.memberColors[payload.name] = Math.max(0, Math.min(9, parseInt(payload.color) || 0));
+      }
       break;
     case "updateMeta":
       if (payload.destination !== undefined) trip.destination = String(payload.destination).slice(0, 100);

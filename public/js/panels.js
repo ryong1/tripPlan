@@ -189,8 +189,8 @@ function renderExpenses() {
       listCard.append(el("div", { class: "expense-row" },
         el("div", { class: "desc" },
           el("div", {}, e.desc),
-          el("div", { style: "font-size:12px;color:var(--muted)" },
-            `${e.payer || "?"} 결제 · ${e.sharedBy.length}명 분담`)
+          el("div", { style: "font-size:12px;color:var(--muted);display:flex;align-items:center;gap:5px" },
+            personDot(e.payer), `${e.payer || "?"} 결제 · ${e.sharedBy.length}명 분담`)
         ),
         el("span", { class: "amt" }, won(e.amount)),
         el("button", { class: "del tiny", onclick: () => send("removeExpense", { id: e.id }) }, "✕")
@@ -312,7 +312,7 @@ function renderPacking() {
     card.append(el("div", { class: "pack-row" + (p.done ? " done" : "") },
       cb,
       el("span", { class: "text" }, p.text),
-      p.assignee ? el("span", { class: "assignee-tag" }, p.assignee) : null,
+      p.assignee ? el("span", { class: "assignee-tag", style: `background:${memberColor(p.assignee)};color:#fff` }, p.assignee) : null,
       el("button", { class: "del tiny", onclick: () => send("removePacking", { id: p.id }) }, "✕")
     ));
   }

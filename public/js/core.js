@@ -182,14 +182,42 @@ socket.on("state", (trip) => {
   state = trip;
   render();
 });
+// 멤버별 색상 팔레트 (색상 미지정 시 멤버 순서로 자동 배정)
+const PERSON_COLORS = ["#3c6ec8", "#e0673f", "#2f9e6f", "#8b5cf6", "#e5484d", "#0891b2", "#d97706", "#db2777", "#65a30d", "#475569"];
+function memberColor(name) {
+  if (!name) return "#94a3b8";
+  const mc = state && state.memberColors;
+  let idx;
+  if (mc && mc[name] != null) idx = mc[name];
+  else { const arr = (state && state.members) || []; const i = arr.indexOf(name); idx = i >= 0 ? i : 0; }
+  return PERSON_COLORS[((idx % PERSON_COLORS.length) + PERSON_COLORS.length) % PERSON_COLORS.length];
+}
+function personDot(name) { return el("span", { class: "person-dot", style: `background:${memberColor(name)}` }); }
+
 socket.on("presence", ({ online, people }) => {
   const ppl = people || [];
-  const names = ppl.map((p) => p.name).join(", ") || `${online}명`;
-  const editing = ppl.filter((p) => p.editing).map((p) => p.name);
-  let txt = `● ${names}`;
-  if (editing.length) txt += `  ·  ${editing.join(", ")} 편집 중`;
-  $("#presence").textContent = txt;
+  const box = $("#presence");
+  box.innerHTML = "";
+  if (!ppl.length) { box.textContent = `● ${online}명 접속`; return; }
+  ppl.forEach((p) => box.append(el("span", { class: "pres-person" + (p.editing ? " editing" : "") },
+    personDot(p.name), (p.name || "") + (p.editing ? " ✎" : ""))));
 });
+
+// 공유 모달의 멤버 색상 편집 (스와치 클릭 시 다음 색으로 순환)
+function renderMemberColors() {
+  const box = $("#memberColors");
+  if (!box) return;
+  box.innerHTML = "";
+  const ms = (state && state.members) || [];
+  if (!ms.length) { box.append(el("p", { class: "sub", style: "margin:0" }, "아직 멤버가 없어요.")); return; }
+  ms.forEach((name) => {
+    const cur = (state.memberColors && state.memberColors[name] != null) ? state.memberColors[name] : ms.indexOf(name);
+    box.append(el("div", { class: "person-row" },
+      el("button", { class: "person-swatch", style: `background:${memberColor(name)}`, title: "색상 바꾸기",
+        onclick: () => send("setMemberColor", { name, color: (Number(cur) + 1) % PERSON_COLORS.length }) }),
+      el("span", { class: "person-name" }, name)));
+  });
+}
 
 // 편집 중 표시: 계획 영역 입력창에 포커스가 있으면 알림
 function emitEditing(on) { if (currentTripId) socket.emit("editing", { editing: on }); }
@@ -227,6 +255,7 @@ $("#homeBtn").addEventListener("click", () => {
 
 $("#shareBtn").addEventListener("click", () => {
   $("#shareLink").value = location.origin + "/?trip=" + currentTripId;
+  renderMemberColors();
   $("#shareModal").classList.remove("hidden");
 });
 $("#closeShare").addEventListener("click", () => $("#shareModal").classList.add("hidden"));
@@ -317,5 +346,6 @@ function render() {
   renderExpenses();
   renderPacking();
   renderRecap();
+  if (!$("#shareModal").classList.contains("hidden")) renderMemberColors(); // 모달 열려 있으면 색상 갱신
   if ($("#tab-plan").classList.contains("active")) { if (!map) showMap(); else updateMap(); }
 }

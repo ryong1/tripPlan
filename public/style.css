@@ -768,6 +768,9 @@ input:focus, select:focus, textarea:focus { box-shadow: 0 0 0 3px var(--brand-so
 .summary-item { background: transparent; border: none; padding: 0; box-shadow: none; }
 .summary-item:hover { transform: none; box-shadow: none; }
 .itin-actions .act-ai, .itin-actions .act-soft, .itin-actions .act-line {
-  background: var(--brand-soft); color: var(--brand-dark); border: 1.5px solid var(--brand); }
+  background: rgba(255, 255, 255, 0.5); color: var(--brand-dark); border: 1.5px solid var(--brand); }
 .itin-actions .act-ai:hover, .itin-actions .act-soft:hover, .itin-actions .act-line:hover {
   background: var(--brand); color: #fff; }
+/* 다크 계열 테마: 흰 반투명이 너무 밝지 않게 */
+html[data-theme="dark"] .itin-actions button,
+html[data-theme="olive"] .itin-actions button { background: rgba(255, 255, 255, 0.1); }

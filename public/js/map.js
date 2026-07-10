@@ -104,7 +104,8 @@ function updateMap() {
       const recs = nearbyCache.get(`${center.lat.toFixed(3)},${center.lon.toFixed(3)}|${recState}`);
       if (Array.isArray(recs)) recs.filter((r) => r.lat != null && r.lon != null).slice(0, 10).forEach((r) => {
         const isFocus = focusRec && focusRec.name === r.name && Math.abs(focusRec.lat - r.lat) < 1e-6;
-        L.marker([r.lat, r.lon], { icon: recIcon(isFocus) }).bindPopup(`<b>${r.name}</b><br>${catKr(r.category)}`).addTo(mapMarkers);
+        const pop = el("div", { class: "map-pop" }, el("b", {}, r.name || ""), el("div", { class: "map-pop-sub" }, catKr(r.category)));
+        L.marker([r.lat, r.lon], { icon: recIcon(isFocus) }).bindPopup(pop).addTo(mapMarkers);
       });
     }
   }

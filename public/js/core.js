@@ -22,6 +22,12 @@ const el = (tag, props = {}, ...kids) => {
   return n;
 };
 const won = (n) => (Number(n) || 0).toLocaleString("ko-KR") + "원";
+// 빈 상태(첫 화면) — 이모지 + 안내 + 선택적 CTA 버튼. 밋밋한 회색 한 줄 대신 행동을 유도.
+function emptyState(emoji, msg, cta) {
+  const box = el("div", { class: "empty" }, el("div", { class: "empty-emoji" }, emoji), el("div", { class: "empty-msg" }, msg));
+  if (cta) box.append(el("button", { class: "primary empty-cta", onclick: cta.onclick }, cta.label));
+  return box;
+}
 const send = (type, payload) => socket.emit("action", { type, payload });
 const saveName = (name) => localStorage.setItem("tp_name", name);
 
@@ -72,7 +78,7 @@ let kakaoLoadPromise = null;
 // 카카오맵(지도+로컬 검색)은 '추가 기능 신청' 승인이 필요해 현재 비활성.
 // 승인받으면 true로 바꾸면 지도·검색이 자동으로 카카오로 전환됨.
 // (장소 '이미지 검색'은 별도 검색 REST API라 이 값과 무관하게 계속 동작)
-const KAKAO_MAPS_ENABLED = false;
+const KAKAO_MAPS_ENABLED = true;
 async function loadConfig() {
   try { const c = await (await fetch("/api/config")).json(); kakaoJsKey = c.kakaoJsKey || ""; }
   catch { kakaoJsKey = ""; }
@@ -248,14 +254,22 @@ socket.on("presence", ({ online, people }) => {
   const box = $("#presence");
   box.innerHTML = "";
   if (!ppl.length) { box.textContent = `● ${online}명 접속`; }
-  else ppl.forEach((p) => box.append(el("span", { class: "pres-person" + (p.editing ? " editing" : "") },
-    personDot(p.name), (p.name || "") + (p.editing ? " ✎" : ""))));
+  else {
+    // 멤버 색상 아바타(이니셜)로 접속자를 겹쳐 보여줌 — 실시간 협업 느낌을 살림
+    ppl.slice(0, 6).forEach((p) => box.append(el("span", {
+      class: "pres-avatar" + (p.editing ? " editing" : ""),
+      style: `background:${memberColor(p.name)}`,
+      title: (p.name || "익명") + (p.editing ? " · 편집 중" : ""),
+    }, ((p.name || "?").trim().charAt(0) || "?"))));
+    if (ppl.length > 6) box.append(el("span", { class: "pres-more" }, `+${ppl.length - 6}`));
+  }
   // 경비정산 탭이 열려 있으면 '함께하는 사람' 접속 상태 갱신
   // 단, 경비 입력창에 포커스가 있으면 재빌드가 커서/입력을 날리므로 건너뜀 (접속 표시만 위 roster로 갱신됨)
   if (typeof renderExpenses === "function" && $("#tab-expenses").classList.contains("active")) {
     const ae = document.activeElement;
     const typingInExpenses = ae && ["INPUT", "TEXTAREA", "SELECT"].includes(ae.tagName) && ae.closest("#tab-expenses");
-    if (!typingInExpenses) renderExpenses();
+    const dirty = typeof isExpenseFormDirty === "function" && isExpenseFormDirty();
+    if (!typingInExpenses && !dirty) renderExpenses(); // 입력 중이거나 선택해둔 게 있으면 유지
   }
 });
 
@@ -429,7 +443,8 @@ function render() {
   $("#tripSub").textContent = [state.destination && "📍 " + state.destination, range].filter(Boolean).join("  ·  ");
   if (state.destination) getTripCenter(); // 검색 편향용 목적지 중심 미리 확보
   renderItinerary();
-  renderExpenses();
+  // 지출 추가 폼을 편집 중(칩 선택·낸사람 변경 등)이면 재빌드를 건너뛰어 선택을 보존
+  if (!(typeof isExpenseFormDirty === "function" && isExpenseFormDirty())) renderExpenses();
   renderPacking();
   renderRecap();
   if (!$("#shareModal").classList.contains("hidden")) renderMemberColors(); // 모달 열려 있으면 색상 갱신

@@ -1,0 +1,92 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 900" preserveAspectRatio="xMidYMax slice">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#d7ecff"/>
+      <stop offset="0.55" stop-color="#eaf3ff"/>
+      <stop offset="1" stop-color="#fdeede"/>
+    </linearGradient>
+    <linearGradient id="water" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#d6f0fa"/>
+      <stop offset="1" stop-color="#b6dff1"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 하늘 -->
+  <rect x="0" y="0" width="1440" height="900" fill="url(#sky)"/>
+
+  <!-- 태양 + 노을 글로우 -->
+  <circle cx="1070" cy="230" r="150" fill="#ffe1a6" fill-opacity="0.35"/>
+  <circle cx="1070" cy="230" r="108" fill="#ffd47e" fill-opacity="0.5"/>
+  <circle cx="1070" cy="230" r="72" fill="#ffcf5c"/>
+
+  <!-- 구름 -->
+  <g fill="#ffffff" fill-opacity="0.92">
+    <path d="M250,196 C233,196 220,185 220,171 C220,158 231,147 245,147 C251,139 261,134 272,134 C288,134 302,147 303,163 C319,161 334,173 334,185 C334,192 328,196 320,196 Z"/>
+    <path d="M560,150 C546,150 536,141 536,130 C536,120 545,111 556,111 C561,105 569,101 578,101 C591,101 602,111 603,124 C616,123 628,132 628,142 C628,148 623,150 617,150 Z"/>
+    <path d="M900,120 C889,120 881,113 881,104 C881,96 888,89 897,89 C901,84 907,81 914,81 C925,81 933,89 934,99 C944,98 954,105 954,114 C954,118 950,120 945,120 Z"/>
+  </g>
+
+  <!-- 먼 산맥 (라벤더) -->
+  <path d="M0,540 L150,468 L300,540 L470,436 L640,540 L820,448 L1010,540 L1200,452 L1380,528 L1440,498 L1440,900 L0,900 Z"
+        fill="#c6bce9"/>
+
+  <!-- 가운데 산맥 (블루) + 눈봉우리 -->
+  <path d="M0,628 L220,500 L360,606 L520,470 L700,616 L880,498 L1080,616 L1280,508 L1440,606 L1440,900 L0,900 Z"
+        fill="#96a6dd"/>
+  <g fill="#ffffff">
+    <path d="M520,470 L556,500 L540,510 L525,500 L510,512 Z"/>
+    <path d="M1280,508 L1312,536 L1298,545 L1284,536 L1270,547 Z"/>
+    <path d="M220,500 L250,526 L237,534 L224,525 L212,536 Z"/>
+  </g>
+
+  <!-- 호수 -->
+  <rect x="0" y="648" width="1440" height="120" fill="url(#water)"/>
+  <g fill="#ffffff" fill-opacity="0.5">
+    <rect x="120" y="686" width="230" height="6" rx="3"/>
+    <rect x="520" y="708" width="320" height="6" rx="3"/>
+    <rect x="980" y="694" width="250" height="6" rx="3"/>
+  </g>
+
+  <!-- 앞쪽 언덕 (2겹) -->
+  <path d="M0,772 C240,700 480,764 720,732 C980,698 1200,772 1440,720 L1440,900 L0,900 Z" fill="#8fc884"/>
+  <path d="M0,832 C300,772 700,834 1000,800 C1200,780 1340,824 1440,800 L1440,900 L0,900 Z" fill="#6fae67"/>
+
+  <!-- 소나무 숲 -->
+  <g fill="#4f8a5a">
+    <g transform="translate(210,742)">
+      <path d="M0,-50 L-14,-14 L-7,-14 L-20,14 L-11,14 L-26,40 L26,40 L11,14 L20,14 L7,-14 L14,-14 Z"/>
+      <rect x="-5" y="40" width="10" height="16" fill="#7a5638"/>
+    </g>
+    <g transform="translate(300,758) scale(0.8)">
+      <path d="M0,-50 L-14,-14 L-7,-14 L-20,14 L-11,14 L-26,40 L26,40 L11,14 L20,14 L7,-14 L14,-14 Z"/>
+      <rect x="-5" y="40" width="10" height="16" fill="#7a5638"/>
+    </g>
+    <g transform="translate(120,764) scale(0.72)">
+      <path d="M0,-50 L-14,-14 L-7,-14 L-20,14 L-11,14 L-26,40 L26,40 L11,14 L20,14 L7,-14 L14,-14 Z"/>
+      <rect x="-5" y="40" width="10" height="16" fill="#7a5638"/>
+    </g>
+    <g transform="translate(1180,752)">
+      <path d="M0,-50 L-14,-14 L-7,-14 L-20,14 L-11,14 L-26,40 L26,40 L11,14 L20,14 L7,-14 L14,-14 Z"/>
+      <rect x="-5" y="40" width="10" height="16" fill="#7a5638"/>
+    </g>
+    <g transform="translate(1270,766) scale(0.78)">
+      <path d="M0,-50 L-14,-14 L-7,-14 L-20,14 L-11,14 L-26,40 L26,40 L11,14 L20,14 L7,-14 L14,-14 Z"/>
+      <rect x="-5" y="40" width="10" height="16" fill="#7a5638"/>
+    </g>
+  </g>
+
+  <!-- 열기구 -->
+  <g transform="translate(430,150)">
+    <path d="M0,44 C0,20 20,0 44,0 C68,0 88,20 88,44 C88,72 66,96 48,120 L40,120 C22,96 0,72 0,44 Z" fill="#ef8f6e"/>
+    <path d="M44,0 C30,24 26,72 44,120 L44,0 Z" fill="#f4b28f"/>
+    <path d="M44,0 C58,24 62,72 44,120 L44,120 C50,90 50,30 44,0 Z" fill="#e07a58"/>
+    <rect x="36" y="122" width="16" height="14" rx="2" fill="#7a5638"/>
+    <path d="M38,120 L36,136 M50,120 L52,136" stroke="#9a7a55" stroke-width="1.6"/>
+  </g>
+
+  <!-- 갈매기 -->
+  <g stroke="#6b7a94" stroke-width="2.4" fill="none" stroke-linecap="round">
+    <path d="M760,180 q10,-10 20,0 q10,-10 20,0"/>
+    <path d="M700,210 q8,-8 16,0 q8,-8 16,0"/>
+  </g>
+</svg>

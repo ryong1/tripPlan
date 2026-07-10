@@ -154,9 +154,13 @@ function resolveWikiImage(rec, onDone) {
 }
 function thumbEl(rec) {
   const t = el("div", { class: "nc-thumb" }, el("span", { class: "nc-thumb-label" }, catKr(rec.category)));
-  const setImg = (u) => { if (u) { t.style.backgroundImage = `url("${u}")`; t.classList.add("has"); } };
+  const setImg = (u) => {
+    t.classList.remove("loading");
+    if (u) { t.style.backgroundImage = `url("${u}")`; t.classList.add("has", "img-in"); }
+  };
   const cached = cachedRecImage(rec);
-  if (cached !== undefined) setImg(cached); else resolveRecImage(rec, setImg);
+  if (cached !== undefined) setImg(cached);
+  else { t.classList.add("loading"); resolveRecImage(rec, setImg); } // 불러오는 동안 시머 스켈레톤
   return t;
 }
 function dayButtonsFor(rec, onAfter) {

@@ -143,15 +143,16 @@ function fillRouteLegs(coordItems, legHolders, total, profile) {
   const walk = profile === "walking";
   const suffix = walk ? " (약)" : "";
   routeLegs(coordItems, "driving").then((legs) => {
+    if (!total.isConnected) return; // 재렌더로 교체된 DOM이면 무시
     let sumD = 0, sumT = 0;
     legs.forEach((lg, i) => {
       const dur = walk ? lg.distance / WALK_MPS : lg.duration;
       sumD += lg.distance; sumT += dur;
-      if (legHolders[i]) legHolders[i].node.textContent = `${fmtDist(lg.distance)} · ${fmtDur(dur)}${suffix}`;
+      if (legHolders[i] && legHolders[i].node.isConnected) legHolders[i].node.textContent = `${fmtDist(lg.distance)} · ${fmtDur(dur)}${suffix}`;
     });
     total.textContent = `총 ${fmtDist(sumD)} · ${fmtDur(sumT)}${suffix}`;
   }).catch(() => {
-    legHolders.forEach((h) => (h.node.textContent = "이동 계산 실패 (잠시 후 재시도)"));
+    legHolders.forEach((h) => { if (h.node.isConnected) h.node.textContent = "이동 계산 실패 (잠시 후 재시도)"; });
   });
 }
 
@@ -181,6 +182,7 @@ async function fillTransitLegs(day, coordItems, legHolders, total) {
     if (legHolders[i]) legHolders[i].node.textContent = "· · · 대중교통 계산 중 · · ·";
   }
   for (let i = 0; i < legHolders.length; i++) {
+    if (!total.isConnected) return; // 재렌더로 교체된 DOM이면 중단(불필요한 API 호출도 멈춤)
     const node = legHolders[i] && legHolders[i].node;
     let t;
     try { t = await transitLeg(coordItems[i], coordItems[i + 1]); }

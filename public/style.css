@@ -965,8 +965,12 @@ button.tiny { padding: 6px 14px; }
   font-family: "Noto Sans KR", -apple-system, "Segoe UI", sans-serif !important;
 }
 
-/* ════ 배경 여행 일러스트 (은은하게) ════ */
-.bg-art { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; color: var(--brand); opacity: 0.05; pointer-events: none; }
+/* ════ 배경 여행 일러스트 (채색 그림 파일을 그대로) ════ */
+.bg-art {
+  position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none;
+  background: url("/bg-art.svg") center bottom / cover no-repeat;
+  opacity: 0.4;
+}
 .app, .landing { position: relative; z-index: 1; }
 .landing { background: transparent; }  /* 랜딩에서도 배경 그림 보이도록 */
 
@@ -979,3 +983,93 @@ button.tiny { padding: 6px 14px; }
 .member-name { font-weight: 700; }
 .member-on { font-size: 12px; color: var(--ok); font-weight: 600; }
 .member-stat { margin-left: auto; font-size: 13px; color: var(--muted); }
+
+/* ════════════════ 디자인·UX 리프레시 (v2) ════════════════
+   앞선 규칙들 위에 얹어 최종값을 확정한다. */
+
+/* ── 위계: 페이지 제목/카드 헤더를 본문과 또렷이 분리 ── */
+h2.pane-title { font-size: 24px; }
+.card-head h3, .rec-head h3 { font-size: 17.5px; }
+@media (max-width: 560px) { h2.pane-title { font-size: 19px; } .card-head h3, .rec-head h3 { font-size: 16px; } }
+
+/* ── 빈 상태(첫 화면): 이모지 + 안내 + CTA ── */
+.empty { color: var(--muted); text-align: center; padding: 34px 16px; display: flex;
+  flex-direction: column; align-items: center; gap: 8px; }
+.empty-emoji { font-size: 40px; line-height: 1; }
+.empty-msg { white-space: pre-line; font-size: 14px; line-height: 1.6; max-width: 380px; }
+.empty-cta { margin-top: 8px; }
+.day-empty { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+
+/* ── 터치 피드백: 탭했을 때 눌린 느낌(모바일에서 hover-lift 대신) ── */
+@media (hover: none) {
+  .acc-head:active, .pack-row:active, .nearby-card:active, .weather-day:active,
+  .recent-open:active, .member-row:active, .rec-item:active, .expense-row:active,
+  .search-item:active { background: var(--hover); }
+}
+.chip:active, .day-chip:active, .nearby-cat:active, .tab:active,
+.vote-btn:active, .theme-opt:active { transform: scale(0.96); }
+
+/* ── '오늘' 카드: 여행 중 가장 중요한 앵커를 확실히 강조 ── */
+.day-card.today {
+  border: 1px solid var(--glass-edge); border-left: 3px solid var(--brand);
+  background: linear-gradient(180deg, var(--brand-soft), transparent 96px);
+}
+.day-card.today .day-date { background: var(--brand); color: #fff; padding: 3px 13px; border-radius: 999px; }
+html[data-theme="olive"] .day-card.today .day-date { color: #2b2d08; }
+
+/* ── 추천 썸네일: 로딩 시머 스켈레톤 + 이미지 페이드인 ── */
+.nc-thumb.loading {
+  background-image: linear-gradient(100deg, #e7edf6 30%, #f3f7fc 50%, #e7edf6 70%);
+  background-size: 200% 100%; animation: shimmer 1.2s ease-in-out infinite;
+}
+html[data-theme="dark"] .nc-thumb.loading,
+html[data-theme="olive"] .nc-thumb.loading {
+  background-image: linear-gradient(100deg, #2a3450 30%, #384463 50%, #2a3450 70%);
+}
+.nc-thumb.loading .nc-thumb-label { opacity: 0; }
+@keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+.nc-thumb.img-in { animation: thumb-in 0.35s ease; }
+@keyframes thumb-in { from { opacity: 0.25; } to { opacity: 1; } }
+
+/* ── 실시간 협업 presence: 멤버 색 아바타 스택 ── */
+.presence { gap: 0; }
+.pres-avatar {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 27px; height: 27px; border-radius: 50%; color: #fff;
+  font-size: 12px; font-weight: 700; flex: none; margin-left: -7px;
+  border: 2px solid var(--card); text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.22);
+}
+.pres-avatar:first-child { margin-left: 0; }
+.pres-avatar.editing { z-index: 2; animation: pres-pulse 1.5s ease infinite; }
+@keyframes pres-pulse {
+  0%, 100% { box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--ok); }
+  50% { box-shadow: 0 0 0 2px var(--card), 0 0 0 6px var(--brand-soft); }
+}
+.pres-more { font-size: 12px; color: var(--muted); font-weight: 700; margin-left: 5px; }
+
+/* ── 모바일: 일정 항목 부제(주소/메모)를 숨기지 말고 둘째 줄로 ── */
+@media (max-width: 560px) {
+  .acc-head { flex-wrap: wrap; row-gap: 2px; }
+  .acc-sub { display: block; order: 9; flex-basis: 100%; margin-left: 50px;
+    font-size: 11px; line-height: 1.35; color: var(--muted); }
+  .acc-head .del, .acc-head .done-btn { order: 8; }
+}
+
+/* ── 랜딩: 배경 그림을 더 또렷하게(첫인상) ── */
+.landing .bg-art { opacity: 0.7; }
+
+/* ── 여행 일기: 사용자 느낌 입력 + 내보내기 ── */
+.diary-note {
+  width: 100%; margin-top: 10px; resize: vertical; min-height: 52px;
+  font-family: "Noto Sans KR", sans-serif; font-size: 14.5px; line-height: 1.6;
+  border: 1px dashed var(--glass-edge); border-radius: 12px;
+  background: var(--brand-soft); color: var(--ink); padding: 10px 13px;
+}
+.diary-note::placeholder { color: var(--muted); }
+.diary-note:focus { border-style: solid; border-color: var(--brand); background: var(--surface); }
+.recap-export { display: flex; gap: 10px; margin-top: 8px; }
+.recap-export button { flex: 1; padding: 13px; font-weight: 700; }
+.recap-export .act-soft { background: var(--brand-soft); color: var(--brand-dark); border-color: transparent; }
+.recap-export .act-soft:hover { background: var(--brand); color: #fff; }
+@media (max-width: 560px) { .recap-export { flex-direction: column; } }

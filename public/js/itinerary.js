@@ -340,7 +340,8 @@ function renderItinerary() {
   if (state.destination) root.append(renderRegionRecs());
 
   if (state.itinerary.length === 0) {
-    root.append(el("p", { class: "empty" }, "여행을 만들 때 기간을 넣으면 날짜가 자동으로 채워져요. 아래에서 날짜를 추가할 수도 있어요."));
+    root.append(emptyState("🗓️", "아직 일정이 비어 있어요.\n여행 기간을 넣으면 날짜가 자동으로 채워져요.",
+      state.destination ? { label: "✨ 추천 코스로 채우기", onclick: () => openAiOptions() } : null));
   }
 
   for (const day of state.itinerary) {
@@ -399,7 +400,10 @@ function renderDay(day) {
     }
   });
   if (!day.items.length) {
-    timeline.append(el("div", { class: "day-empty" }, "위 '추천 코스 자동 만들기'로 한 번에 채우거나, 아래 검색으로 장소를 담아보세요."));
+    timeline.append(el("div", { class: "day-empty" },
+      el("span", {}, "이 날은 아직 비어 있어요. "),
+      el("button", { class: "tiny act-ai", onclick: () => openAiOptions() }, "✨ AI 추천 코스"),
+      el("span", { style: "color:var(--muted)" }, " 또는 아래에서 장소를 검색해 담아보세요.")));
   }
   card.append(timeline);
 
@@ -446,8 +450,144 @@ function buildRecapText() {
       if (itemCost(it) > 0) parts.push(won(itemCost(it)));
       lines.push("  - " + parts.join("  "));
     });
+    if (d.diary && d.diary.trim()) lines.push("  ✍️ " + d.diary.trim().replace(/\n+/g, " / "));
   });
   return lines.join("\n");
+}
+
+// 여행 일기를 한 장의 이미지(PNG)로 추출 — 외부 라이브러리 없이 Canvas로 직접 그린다.
+function exportRecapImage() {
+  const days = state.itinerary;
+  const W = 820, PAD = 48, MAXW = W - PAD * 2;
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+  const cs = getComputedStyle(document.documentElement);
+  const brand = cs.getPropertyValue("--brand").trim() || "#1d4ed8";
+  const INK = "#25324d", MUTED = "#7a869c", PAPER = "#fbfaf6";
+  const F = (w, s) => `${w} ${s}px "Noto Sans KR", sans-serif`;
+
+  const wrap = (text, font) => {
+    ctx.font = font;
+    const out = [];
+    for (const para of String(text).split("\n")) {
+      let line = "";
+      for (const ch of para) {
+        if (line && ctx.measureText(line + ch).width > MAXW) { out.push(line); line = ch; }
+        else line += ch;
+      }
+      out.push(line);
+    }
+    return out;
+  };
+
+  // ── 레이아웃 패스: 그릴 항목과 높이를 먼저 계산 ──
+  const ops = [];
+  let y = 0;
+  const HEADER_H = 150;
+  y = HEADER_H + 28;
+
+  const range = state.startDate ? `${fmtDate(state.startDate)} ~ ${fmtDate(state.endDate)}` : "";
+  const spent = state.expenses.reduce((s, e) => s + (Number(e.amount) || 0), 0) + tripSpent();
+  const placedCount = days.reduce((n, d) => n + d.items.length, 0);
+  const introText = `${days.length}일 · ${placedCount}곳 · ${won(spent)}`;
+
+  ctx.font = F(500, 17);
+  ops.push({ t: "text", text: introText, font: F(700, 18), color: brand, x: PAD, y });
+  y += 34;
+
+  days.forEach((d, di) => {
+    const dayLabel = `Day ${di + 1}`;
+    const dateStr = fmtDate(d.date) || `${di + 1}일차`;
+    ops.push({ t: "dayhead", label: dayLabel, date: dateStr, y });
+    y += 40;
+    const narr = dayNarrative(d) || "이 날은 아직 비어 있어요.";
+    const nlines = wrap(narr, F(400, 16));
+    nlines.forEach((ln) => { ops.push({ t: "text", text: ln, font: F(400, 16), color: INK, x: PAD, y }); y += 25; });
+    if (d.diary && d.diary.trim()) {
+      const flines = wrap("✍️ " + d.diary.trim(), F(500, 16));
+      const boxH = flines.length * 25 + 20;
+      ops.push({ t: "notebox", y: y - 4, h: boxH });
+      flines.forEach((ln, i) => ops.push({ t: "text", text: ln, font: (i === 0 ? F(700, 16) : F(500, 16)), color: brand, x: PAD + 14, y: y + 12 + i * 25 }));
+      y += boxH + 4;
+    }
+    if (d.items.length) {
+      const bits = [`📍 ${d.items.length}곳`];
+      if (dayCost(d) > 0) bits.push(`💸 ${won(dayCost(d))}`);
+      ops.push({ t: "text", text: bits.join("    "), font: F(600, 13), color: MUTED, x: PAD, y });
+      y += 26;
+    }
+    y += 14;
+    if (di < days.length - 1) { ops.push({ t: "divider", y: y - 8 }); }
+  });
+  const footY = y + 10;
+  const H = footY + 44;
+
+  // ── 드로잉 패스 ──
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  canvas.width = W * dpr; canvas.height = H * dpr;
+  ctx.scale(dpr, dpr);
+  ctx.textBaseline = "alphabetic";
+
+  ctx.fillStyle = PAPER; ctx.fillRect(0, 0, W, H);
+  // 헤더 밴드
+  ctx.fillStyle = brand; ctx.fillRect(0, 0, W, HEADER_H);
+  ctx.fillStyle = "rgba(255,255,255,0.85)"; ctx.font = F(700, 13);
+  ctx.fillText("TRAVEL DIARY", PAD, 52);
+  ctx.fillStyle = "#fff"; ctx.font = F(800, 32);
+  ctx.fillText(`${state.name} 여행 일기`, PAD, 96);
+  ctx.fillStyle = "rgba(255,255,255,0.9)"; ctx.font = F(500, 15);
+  ctx.fillText([state.destination, range].filter(Boolean).join("   ·   "), PAD, 126);
+
+  for (const op of ops) {
+    if (op.t === "text") { ctx.fillStyle = op.color; ctx.font = op.font; ctx.fillText(op.text, op.x, op.y); }
+    else if (op.t === "dayhead") {
+      // 브랜드 pill + 날짜
+      ctx.font = F(700, 15); const pw = ctx.measureText(op.label).width + 26;
+      ctx.fillStyle = brand; roundRect(ctx, PAD, op.y - 20, pw, 28, 14); ctx.fill();
+      ctx.fillStyle = "#fff"; ctx.fillText(op.label, PAD + 13, op.y);
+      ctx.fillStyle = MUTED; ctx.font = F(600, 15); ctx.fillText(op.date, PAD + pw + 12, op.y);
+    }
+    else if (op.t === "notebox") {
+      ctx.fillStyle = hexA(brand, 0.09); roundRect(ctx, PAD, op.y, MAXW, op.h, 12); ctx.fill();
+    }
+    else if (op.t === "divider") {
+      ctx.strokeStyle = "rgba(0,0,0,0.08)"; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(PAD, op.y); ctx.lineTo(W - PAD, op.y); ctx.stroke();
+    }
+  }
+  ctx.fillStyle = MUTED; ctx.font = F(500, 13);
+  ctx.fillText("made with 여행 플래너 ✈", PAD, footY + 4);
+
+  canvas.toBlob((blob) => {
+    if (!blob) { toast("이미지 생성에 실패했어요"); return; }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `${(state.name || "여행").replace(/[\\/:*?"<>|]/g, "")}_여행일기.png`;
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+    toast("여행 일기 이미지를 저장했어요 🖼");
+  }, "image/png");
+}
+
+// 캔버스 라운드 사각형 헬퍼
+function roundRect(ctx, x, y, w, h, r) {
+  r = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+// #rrggbb + alpha → rgba() 문자열 (테마 브랜드색이 rgb()/hex 어느 쪽이어도 견고하게)
+function hexA(color, a) {
+  const c = String(color).trim();
+  let m = c.match(/^#?([0-9a-f]{6})$/i);
+  if (m) { const n = parseInt(m[1], 16); return `rgba(${n >> 16 & 255},${n >> 8 & 255},${n & 255},${a})`; }
+  m = c.match(/^rgba?\(([^)]+)\)/i);
+  if (m) { const p = m[1].split(",").map((s) => s.trim()); return `rgba(${p[0]},${p[1]},${p[2]},${a})`; }
+  return `rgba(29,78,216,${a})`;
 }
 
 async function shareRecap() {
@@ -505,6 +645,14 @@ function renderRecap() {
       el("span", { class: "diary-date" }, fmtDate(d.date) || `${di + 1}일차`),
       ...(w && w.tmax != null ? [el("span", { class: "diary-weather" }, `${wmoIcon(w.code)} ${Math.round(w.tmax)}°${w.tmin != null ? " / " + Math.round(w.tmin) + "°" : ""}`)] : [])));
     entry.append(el("p", { class: "diary-narr" }, dayNarrative(d) || "이 날은 아직 비어 있어요."));
+    // 사용자 소감/느낌 — 함께 편집하는 공유 텍스트, 자동 저장
+    const note = el("textarea", { class: "diary-note", rows: "2",
+      placeholder: "이 날의 느낌을 적어보세요 ✍️ (예: 바다가 정말 예뻤다!)" });
+    note.value = d.diary || "";
+    let noteTimer;
+    note.addEventListener("input", () => { clearTimeout(noteTimer); noteTimer = setTimeout(() => send("setDiary", { dayId: d.id, text: note.value }), 600); });
+    note.addEventListener("blur", () => { clearTimeout(noteTimer); if ((d.diary || "") !== note.value) send("setDiary", { dayId: d.id, text: note.value }); });
+    entry.append(note);
     if (d.items.length && showPhotos) {
       const strip = el("div", { class: "diary-photos" });
       d.items.filter((it) => it.place && it.lat != null).slice(0, 10).forEach((it) => {
@@ -521,7 +669,9 @@ function renderRecap() {
     root.append(entry);
   });
 
-  root.append(el("button", { class: "primary", style: "width:100%;margin-top:8px", onclick: shareRecap }, "내보내기"));
+  root.append(el("div", { class: "recap-export" },
+    el("button", { class: "primary", onclick: exportRecapImage }, "🖼 이미지로 추출"),
+    el("button", { class: "act-soft", onclick: shareRecap }, "📝 텍스트로 추출")));
 }
 
 // ── 날씨 기반 준비물 추천 ──

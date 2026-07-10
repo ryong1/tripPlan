@@ -231,6 +231,12 @@ function applyAction(trip, action, user) {
     case "removeDay":
       trip.itinerary = trip.itinerary.filter((x) => x.id !== payload.id);
       break;
+    case "setDiary": {
+      // 여행 일기: 그 날의 사용자 소감/느낌 (함께 편집하는 공유 텍스트)
+      const d = trip.itinerary.find((x) => x.id === payload.dayId);
+      if (d) d.diary = String(payload.text || "").slice(0, 2000);
+      break;
+    }
     case "addItem": {
       const d = trip.itinerary.find((x) => x.id === payload.dayId);
       if (d) d.items.push({
@@ -264,17 +270,29 @@ function applyAction(trip, action, user) {
 
     case "autoPlan": {
       if (!Array.isArray(payload.assignments)) return false;
-      if (payload.replace) for (const d of trip.itinerary) d.items = [];
+      // 먼저 임시 버킷(dayId -> 새 항목들)에 쌓고, 유효한 항목이 하나라도 생겼을 때만 반영.
+      // (검증 전에 기존 일정을 지워버려서 실패 시 통째로 유실되던 문제 방지)
+      const buckets = new Map();
+      let produced = 0;
       for (const a of payload.assignments.slice(0, 60)) {
         if (!a || typeof a !== "object") continue;
         const d = trip.itinerary.find((x) => x.id === a.dayId);
         if (!d || !Array.isArray(a.items)) continue;
+        const arr = buckets.get(d.id) || [];
         for (const src of a.items.slice(0, 200)) {
-          d.items.push({
+          arr.push({
             id: uid(), time: src.time || "", place: String(src.place || "").slice(0, 500), memo: String(src.memo || "").slice(0, 500),
             lat: normCoord(src.lat), lon: normCoord(src.lon), addr: String(src.addr || "").slice(0, 500),
           });
+          produced++;
         }
+        buckets.set(d.id, arr);
+      }
+      if (!produced) return false; // 쓸 만한 항목이 하나도 없으면 기존 일정을 건드리지 않음
+      if (payload.replace) for (const d of trip.itinerary) d.items = [];
+      for (const [dayId, arr] of buckets) {
+        const d = trip.itinerary.find((x) => x.id === dayId);
+        if (d) d.items.push(...arr);
       }
       break;
     }

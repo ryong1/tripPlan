@@ -161,9 +161,14 @@ function flash(node, msg) {
   setTimeout(() => t.remove(), 1400);
 }
 
+// 지출 추가 폼에 사용자가 손댔는지(입력/낸사람/나눌사람 선택) 추적 — 실시간 재렌더가 선택을 날리지 않도록.
+let expenseFormDirty = false;
+function isExpenseFormDirty() { return expenseFormDirty; }
+
 function renderExpenses() {
   const root = $("#tab-expenses");
   root.innerHTML = "";
+  expenseFormDirty = false; // 새 폼을 그리는 시점 = 깨끗한 상태
   root.append(el("h2", { class: "pane-title" }, "경비정산"));
 
   const members = state.members.length ? state.members : [me];
@@ -185,9 +190,10 @@ function renderExpenses() {
   });
   root.append(roster);
 
-  const descI = el("input", { type: "text", placeholder: "내역" });
-  const amtI = el("input", { type: "number", placeholder: "금액", min: "0" });
-  const payerSel = el("select", {}, ...members.map((m) => el("option", { value: m }, m)));
+  const markDirty = () => { expenseFormDirty = true; };
+  const descI = el("input", { type: "text", placeholder: "내역", oninput: markDirty });
+  const amtI = el("input", { type: "number", placeholder: "금액", min: "0", oninput: markDirty });
+  const payerSel = el("select", { onchange: markDirty }, ...members.map((m) => el("option", { value: m }, m)));
   payerSel.value = me;
 
   const shareChips = el("div", { class: "chips", style: "margin:10px 0" });
@@ -198,7 +204,7 @@ function renderExpenses() {
       const on = shareSet.has(m);
       shareChips.append(el("span", { class: "chip person-chip" + (on ? " on" : ""),
         style: on ? `background:${memberColor(m)};border-color:transparent;color:#fff` : "",
-        onclick: () => { shareSet.has(m) ? shareSet.delete(m) : shareSet.add(m); renderChips(); } },
+        onclick: () => { shareSet.has(m) ? shareSet.delete(m) : shareSet.add(m); markDirty(); renderChips(); } },
         ...(on ? [] : [personDot(m)]), m));
     }
   };
@@ -214,7 +220,7 @@ function renderExpenses() {
       const amount = Number(amtI.value);
       if (!descI.value.trim() || !amount) return;
       send("addExpense", { desc: descI.value.trim(), amount, payer: payerSel.value, sharedBy: [...shareSet] });
-      descI.value = ""; amtI.value = "";
+      descI.value = ""; amtI.value = ""; expenseFormDirty = false;
     } }, "+ 지출 추가")
   ));
 
@@ -249,7 +255,8 @@ function renderExpenses() {
   listCard.append(el("div", { class: "card-head" }, el("h3", {}, "지출 내역")));
   let total = 0;
   if (state.expenses.length === 0) {
-    listCard.append(el("p", { class: "empty" }, "아직 지출 내역이 없어요."));
+    listCard.append(emptyState("🧾", "아직 지출 내역이 없어요.\n같이 쓴 돈을 추가하면 자동으로 정산해 드려요.",
+      { label: "+ 첫 지출 추가", onclick: () => { descI.focus(); descI.scrollIntoView({ behavior: "smooth", block: "center" }); } }));
   } else {
     for (const e of state.expenses) {
       total += Number(e.amount) || 0;
@@ -297,12 +304,13 @@ function computeBalances() {
   for (const e of state.expenses) {
     const sharers = Array.isArray(e.sharedBy) ? e.sharedBy : [];
     if (!sharers.length) continue;
+    const amt = Number(e.amount) || 0; // 문자열/누락 금액이 섞여도 NaN 방지
     touch(e.payer);
-    bal[e.payer] += e.amount;
+    bal[e.payer] += amt;
     // 지분을 정수 원으로 배분: 몫은 균등, 나머지는 앞에서부터 1원씩 추가로 차감
     const n = sharers.length;
-    const per = Math.floor(e.amount / n);
-    let rem = e.amount - per * n;
+    const per = Math.floor(amt / n);
+    let rem = amt - per * n;
     for (const s of sharers) { touch(s); bal[s] -= per; if (rem > 0) { bal[s] -= 1; rem -= 1; } }
   }
   return bal;
